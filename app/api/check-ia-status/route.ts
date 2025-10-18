@@ -1,38 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const ALBUMS_FILE = path.join(process.cwd(), 'data', 'albums.json');
+import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { trackId, playbackUrl } = await request.json();
+    const supabase = await createServerSupabaseClient()
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { trackId, playbackUrl } = await request.json()
     
     // Check if the IA URL is accessible
-    const response = await fetch(playbackUrl, { method: 'HEAD' });
-    
-    const isReady = response.ok;
+    const response = await fetch(playbackUrl, { method: 'HEAD' })
+    const isReady = response.ok
     
     if (isReady) {
-      // Update the track in albums.json to mark it as ready
-      const data = fs.readFileSync(ALBUMS_FILE, 'utf-8');
-      const albumsData = JSON.parse(data);
-      
-      // Find and update the track
-      for (const album of albumsData.albums) {
-        const track = album.tracks.find((t: any) => t.id === trackId);
-        if (track) {
-          track.processing = false;
-          break;
-        }
+      // Update the track to mark it as ready
+      const { error: updateError } = await supabase
+        .from('tracks')
+        .update({ processing: false })
+        .eq('id', trackId)
+        .eq('album_id', (
+          await supabase
+            .from('tracks')
+            .select('album_id')
+            .eq('id', trackId)
+            .single()
+        ).data?.album_id)
+
+      if (updateError) {
+        console.error('Error updating track:', updateError)
       }
-      
-      fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albumsData, null, 2));
     }
     
-    return NextResponse.json({ ready: isReady });
+    return NextResponse.json({ ready: isReady })
   } catch (error) {
-    console.error('Error checking IA status:', error);
-    return NextResponse.json({ ready: false });
+    console.error('Error checking IA status:', error)
+    return NextResponse.json({ ready: false })
   }
 }

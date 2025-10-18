@@ -8,6 +8,7 @@ import { UploadTrackToAlbum } from "@/components/upload-track-to-album";
 import { DeleteAlbum } from "@/components/delete-album";
 import { TrackStatusChecker } from "@/components/track-status-checker";
 import { UploadAlbumCover } from "@/components/upload-album-cover";
+import { TrackItem } from "@/components/track-item";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -18,7 +19,7 @@ export const revalidate = 0;
 
 export default async function AlbumPage({ params }: PageProps) {
   const { id } = await params;
-  const album = getAlbumById(id);
+  const album = await getAlbumById(id);
 
   if (!album) {
     notFound();

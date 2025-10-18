@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { DeleteTrack } from "@/components/delete-track";
+import { TrackMenu } from "@/components/track-menu";
 import { useAudio } from "@/contexts/audio-context";
 
 interface Track {
@@ -20,7 +20,7 @@ interface AudioPlayerProps {
   tracks: Track[];
   albumTitle: string;
   albumId: string;
-  coverUrl?: string; // Add this
+  coverUrl?: string;
 }
 
 export function AudioPlayer({ tracks, albumTitle, albumId, coverUrl }: AudioPlayerProps) {
@@ -43,7 +43,7 @@ export function AudioPlayer({ tracks, albumTitle, albumId, coverUrl }: AudioPlay
           ...t,
           albumTitle: albumTitle,
           albumId: albumId,
-          coverUrl: coverUrl, // Add cover URL
+          coverUrl: coverUrl,
         }))
       );
     }
@@ -77,13 +77,13 @@ export function AudioPlayer({ tracks, albumTitle, albumId, coverUrl }: AudioPlay
                             ...track,
                             albumTitle: albumTitle,
                             albumId: albumId,
-                            coverUrl: coverUrl, // Add cover URL
+                            coverUrl: coverUrl,
                           },
                           tracks.map((t) => ({
                             ...t,
                             albumTitle: albumTitle,
                             albumId: albumId,
-                            coverUrl: coverUrl, // Add cover URL
+                            coverUrl: coverUrl,
                           }))
                         );
                       }
@@ -131,10 +131,11 @@ export function AudioPlayer({ tracks, albumTitle, albumId, coverUrl }: AudioPlay
                         />
                       </div>
                     )}
-                    <DeleteTrack
+                    <TrackMenu
                       albumId={albumId}
                       trackId={track.id}
                       trackTitle={track.title}
+                      playbackUrl={track.playbackUrl}
                     />
                   </div>
                 </div>
