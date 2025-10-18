@@ -2,23 +2,26 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { MoreVertical, Trash2, ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { MoreVertical, ExternalLink, Trash2, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface TrackMenuProps {
   albumId: string;
@@ -28,81 +31,107 @@ interface TrackMenuProps {
 }
 
 export function TrackMenu({ albumId, trackId, trackTitle, playbackUrl }: TrackMenuProps) {
-  const [deleting, setDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deleteFromIA, setDeleteFromIA] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowDeleteDialog(true);
-  };
-
-  const handleConfirmDelete = async () => {
+  const handleDelete = async () => {
     setDeleting(true);
 
     try {
       const response = await fetch(`/api/albums/${albumId}/tracks/${trackId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deleteFromIA }),
       });
-
-      const result = await response.json();
 
       if (response.ok) {
         toast({
           title: 'Track deleted',
-          description: result.iaDeleted 
-            ? `"${trackTitle}" has been removed from both your library and Internet Archive.`
-            : `"${trackTitle}" has been removed from your library.`,
+          description: `"${trackTitle}" has been removed.`,
         });
-        setShowDeleteDialog(false);
         router.refresh();
       } else {
-        throw new Error(result.error || 'Failed to delete');
+        throw new Error('Failed to delete track');
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to delete track. Please try again.',
+        description: 'Failed to delete track. Please try again.',
         variant: 'destructive',
       });
+    } finally {
       setDeleting(false);
+      setShowDeleteDialog(false);
     }
   };
 
-  const handleViewOnIA = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (playbackUrl) {
-      const match = playbackUrl.match(/archive\.org\/download\/([^/]+)/);
-      if (match) {
-        const identifier = match[1];
-        window.open(`https://archive.org/details/${identifier}`, '_blank');
-      } else {
-        window.open(playbackUrl, '_blank');
-      }
+  const handleDownload = async () => {
+    if (!playbackUrl) {
+      toast({
+        title: 'Error',
+        description: 'Download URL not available',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      // Fetch the audio file
+      const response = await fetch(playbackUrl);
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${trackTitle}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: 'Download started',
+        description: `Downloading "${trackTitle}"`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Download failed',
+        description: 'Could not download track. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" disabled={deleting} className="h-8 w-8">
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={handleViewOnIA}>
-            <ExternalLink className="mr-2 h-4 w-4" />
-            View on Internet Archive
-          </DropdownMenuItem>
+        <DropdownMenuContent align="end" className="bg-card/95 backdrop-blur-md border-border/50">
           <DropdownMenuItem
-            onClick={handleDeleteClick}
-            disabled={deleting}
-            className="text-destructive"
+            onClick={handleDownload}
+            className="cursor-pointer focus:bg-secondary/50"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download
+          </DropdownMenuItem>
+          {playbackUrl && (
+            <DropdownMenuItem
+              onClick={() => window.open(playbackUrl, '_blank')}
+              className="cursor-pointer focus:bg-secondary/50"
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View on Internet Archive
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator className="bg-border/50" />
+          <DropdownMenuItem
+            onClick={() => setShowDeleteDialog(true)}
+            className="text-destructive cursor-pointer focus:text-destructive focus:bg-destructive/10"
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Delete Track
@@ -110,53 +139,26 @@ export function TrackMenu({ albumId, trackId, trackTitle, playbackUrl }: TrackMe
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Track</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{trackTitle}"?
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="delete-from-ia"
-                checked={deleteFromIA}
-                onCheckedChange={(checked) => setDeleteFromIA(checked as boolean)}
-              />
-              <label
-                htmlFor="delete-from-ia"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Also delete from Internet Archive
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {deleteFromIA 
-                ? "⚠️ This will permanently remove the file from your Internet Archive account. This cannot be undone."
-                : "The file will remain in your Internet Archive account and can be re-added later."
-              }
-            </p>
-            <div className="flex gap-2 justify-end">
-              <Button 
-                variant="outline" 
-                onClick={() => setShowDeleteDialog(false)}
-                disabled={deleting}
-              >
-                Cancel
-              </Button>
-              <Button 
-                variant="destructive" 
-                onClick={handleConfirmDelete}
-                disabled={deleting}
-              >
-                {deleting ? 'Deleting...' : 'Delete Track'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Track?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{trackTitle}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

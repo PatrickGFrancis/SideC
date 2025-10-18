@@ -14,7 +14,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Upload } from 'lucide-react';
+import { Upload, Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 interface UploadTrackToAlbumProps {
   albumId: string;
@@ -27,7 +28,7 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
   const [artist, setArtist] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState('');
+  const [uploadStage, setUploadStage] = useState<'preparing' | 'uploading' | 'processing' | 'saving' | 'complete'>('preparing');
   const [isIAConnected, setIsIAConnected] = useState(false);
   const [iaCredentials, setIaCredentials] = useState<{ username: string; password: string } | null>(null);
   const { toast } = useToast();
@@ -64,12 +65,29 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
     }
   };
 
+  const getUploadStatusText = () => {
+    switch (uploadStage) {
+      case 'preparing':
+        return 'Preparing upload...';
+      case 'uploading':
+        return `Uploading to Internet Archive... ${uploadProgress}%`;
+      case 'processing':
+        return 'Processing on Internet Archive...';
+      case 'saving':
+        return 'Saving track to album...';
+      case 'complete':
+        return 'Upload complete!';
+      default:
+        return '';
+    }
+  };
+
   const handleUpload = async () => {
     if (!file || !isIAConnected || !iaCredentials) return;
 
     setUploading(true);
     setUploadProgress(0);
-    setUploadStatus('Uploading to Internet Archive...');
+    setUploadStage('preparing');
 
     const iaFormData = new FormData();
     iaFormData.append('file', file);
@@ -78,44 +96,41 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
     iaFormData.append('title', title || file.name);
     iaFormData.append('artist', artist || 'Unknown Artist');
 
+    let progressInterval: NodeJS.Timeout | null = null;
+
     try {
-      // Upload to Internet Archive with progress tracking
-      const iaData = await new Promise<any>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setUploadStage('uploading');
 
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            // Show 0-90% for upload progress
-            const percentComplete = Math.round((e.loaded / e.total) * 90);
-            setUploadProgress(percentComplete);
-          }
+      // Simulate smooth progress based on file size
+      const estimatedSeconds = Math.max(10, (file.size / 1024 / 1024) * 2);
+      progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 95) return prev;
+          return Math.min(prev + 2, 95);
         });
+      }, (estimatedSeconds / 50) * 1000);
 
-        xhr.addEventListener('load', () => {
-          if (xhr.status === 200) {
-            // Show 90% when upload completes, server is processing
-            setUploadProgress(90);
-            setUploadStatus('Processing on Internet Archive...');
-            try {
-              resolve(JSON.parse(xhr.responseText));
-            } catch (e) {
-              reject(new Error('Failed to parse response'));
-            }
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
-        });
-
-        xhr.addEventListener('error', () => reject(new Error('Upload failed')));
-        xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-
-        xhr.open('POST', '/api/upload-to-ia');
-        xhr.send(iaFormData);
+      const response = await fetch('/api/upload-to-ia', {
+        method: 'POST',
+        body: iaFormData,
       });
 
-      // Now save track to database
-      setUploadProgress(95);
-      setUploadStatus('Saving track...');
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+
+      const iaData = await response.json();
+
+      if (!iaData.success) {
+        throw new Error(iaData.error || 'Upload failed');
+      }
+
+      setUploadProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setUploadStage('processing');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setUploadStage('saving');
 
       const trackData = {
         title: title || file.name,
@@ -124,54 +139,59 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
         fileName: file.name,
       };
 
-      const response = await fetch(`/api/albums/${albumId}/tracks`, {
+      const dbResponse = await fetch(`/api/albums/${albumId}/tracks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(trackData),
       });
 
-      const result = await response.json();
+      const result = await dbResponse.json();
 
       if (result.success) {
-        setUploadProgress(100);
-        setUploadStatus('Complete!');
+        setUploadStage('complete');
         toast({
           title: 'Track uploaded!',
           description: `"${title || file.name}" has been added to the album.`,
         });
 
-        // Reset form
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         setFile(null);
         setTitle('');
         setArtist('');
+        setUploadProgress(0);
+        setUploadStage('preparing');
         setOpen(false);
         router.refresh();
       } else {
         throw new Error('Failed to save track');
       }
     } catch (error: any) {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
       console.error('Upload error:', error);
       toast({
         title: 'Upload failed',
         description: error.message || 'Please try again.',
         variant: 'destructive',
       });
+      setUploadProgress(0);
+      setUploadStage('preparing');
     } finally {
       setUploading(false);
-      setUploadProgress(0);
-      setUploadStatus('');
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2">
+        <Button className="gap-2 hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all">
           <Upload className="h-4 w-4" />
           Upload Track
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
         <DialogHeader>
           <DialogTitle>Upload Track</DialogTitle>
           <DialogDescription>
@@ -180,7 +200,7 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
         </DialogHeader>
         <div className="space-y-4">
           {!isIAConnected && (
-            <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
+            <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm border border-destructive/20">
               ⚠️ Please add your Internet Archive credentials in Settings first
             </div>
           )}
@@ -193,6 +213,7 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
               accept="audio/*"
               onChange={handleFileChange}
               disabled={uploading || !isIAConnected}
+              className="cursor-pointer file:cursor-pointer"
             />
             {file && (
               <p className="text-sm text-muted-foreground mt-1">
@@ -223,12 +244,38 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
             />
           </div>
 
+          {uploading && (
+            <div className="space-y-3 py-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                {uploadStage === 'processing' || uploadStage === 'saving' ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                ) : null}
+                <span className="text-foreground/90">{getUploadStatusText()}</span>
+              </div>
+              
+              {uploadStage === 'uploading' && (
+                <Progress value={uploadProgress} className="h-2" />
+              )}
+              
+              {(uploadStage === 'processing' || uploadStage === 'saving') && (
+                <Progress value={undefined} className="h-2" />
+              )}
+            </div>
+          )}
+
           <Button
             onClick={handleUpload}
             disabled={uploading || !file || !isIAConnected}
-            className="w-full"
+            className="w-full hover:bg-primary/90 transition-all"
           >
-            {uploading ? `${uploadStatus} ${uploadProgress}%` : 'Upload Track'}
+            {uploading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Uploading...
+              </span>
+            ) : (
+              'Upload Track'
+            )}
           </Button>
         </div>
       </DialogContent>

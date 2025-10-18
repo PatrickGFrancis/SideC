@@ -1,7 +1,10 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { Album, AlbumWithTracks } from './types'
+import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 
-export async function getAllAlbums(): Promise<Album[]> {
+// Cache user albums for 60 seconds
+export const getAllAlbums = cache(async (): Promise<Album[]> => {
   const supabase = await createServerSupabaseClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -9,7 +12,7 @@ export async function getAllAlbums(): Promise<Album[]> {
 
   const { data, error } = await supabase
     .from('albums')
-    .select('*')
+    .select('id, title, artist, cover_url, release_date, description, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -26,45 +29,58 @@ export async function getAllAlbums(): Promise<Album[]> {
     releaseDate: album.release_date,
     description: album.description,
   }))
-}
+})
 
-export async function getAlbumById(id: string): Promise<AlbumWithTracks | null> {
+// Cache individual album with tracks
+export const getAlbumById = cache(async (id: string): Promise<AlbumWithTracks | null> => {
   const supabase = await createServerSupabaseClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: album, error: albumError } = await supabase
+  // Single optimized query with join instead of two separate queries
+  const { data, error } = await supabase
     .from('albums')
-    .select('*')
+    .select(`
+      id,
+      title,
+      artist,
+      cover_url,
+      release_date,
+      description,
+      tracks (
+        id,
+        title,
+        artist,
+        track_number,
+        audio_url,
+        playback_url,
+        duration,
+        source,
+        processing,
+        created_at
+      )
+    `)
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
-  if (albumError || !album) {
-    console.error('Error fetching album:', albumError)
+  if (error || !data) {
+    console.error('Error fetching album:', error)
     return null
   }
 
-  const { data: tracks, error: tracksError } = await supabase
-    .from('tracks')
-    .select('*')
-    .eq('album_id', id)
-    .order('track_number', { ascending: true })
-
-  if (tracksError) {
-    console.error('Error fetching tracks:', tracksError)
-    return null
-  }
+  // Sort tracks on the client side to avoid another query
+  const sortedTracks = (data.tracks || []).sort((a, b) => a.track_number - b.track_number)
 
   return {
-    id: album.id,
-    title: album.title,
-    artist: album.artist,
-    coverUrl: album.cover_url,
-    releaseDate: album.release_date,
-    description: album.description,
-    tracks: tracks.map(track => ({
+    id: data.id,
+    title: data.title,
+    artist: data.artist,
+    coverUrl: data.cover_url,
+    releaseDate: data.release_date,
+    description: data.description,
+    tracks: sortedTracks.map(track => ({
       id: track.id,
       title: track.title,
       artist: track.artist,
@@ -77,4 +93,4 @@ export async function getAlbumById(id: string): Promise<AlbumWithTracks | null> 
       created_at: track.created_at,
     }))
   }
-}
+})

@@ -1,93 +1,133 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHmac } from 'crypto';
+
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+
+function createIASignature(
+  method: string,
+  bucket: string,
+  key: string,
+  contentType: string,
+  date: string,
+  accessKey: string,
+  secretKey: string
+) {
+  // Only include x-amz-auto-make-bucket in signature
+  const stringToSign = [
+    method,
+    '', // Content-MD5
+    contentType,
+    date,
+    'x-amz-auto-make-bucket:1',
+    `/${bucket}/${key}`,
+  ].join('\n');
+
+  console.log('String to sign:');
+  console.log(stringToSign);
+
+  const signature = createHmac('sha1', secretKey)
+    .update(stringToSign)
+    .digest('base64');
+
+  return `LOW ${accessKey}:${signature}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const iaAccessKey = formData.get('iaUsername') as string;
-    const iaSecretKey = formData.get('iaPassword') as string;
-    const rawTitle = formData.get('title') as string;
-    const rawArtist = formData.get('artist') as string;
+    const iaUsername = formData.get('iaUsername') as string;
+    const iaPassword = formData.get('iaPassword') as string;
+    const title = formData.get('title') as string;
+    const artist = formData.get('artist') as string;
 
-    if (!file || !iaAccessKey || !iaSecretKey) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!file || !iaUsername || !iaPassword) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields' },
+        { status: 400 }
+      );
     }
 
-    console.log('Attempting upload with access key:', iaAccessKey);
+    const cleanUsername = iaUsername.trim();
+    const cleanPassword = iaPassword.trim();
 
-    // Sanitize function for ASCII-only strings
-    const sanitizeForHeader = (str: string) => {
-      return str
-        .replace(/['']/g, "'")  // Replace curly quotes with straight quotes
-        .replace(/[""]/g, '"')   // Replace curly double quotes
-        .replace(/[^\x00-\x7F]/g, '');  // Remove any non-ASCII characters
-    };
+    console.log('=== IA UPLOAD ===');
+    console.log('Access Key:', cleanUsername);
+    console.log('Access Key length:', cleanUsername.length);
 
-    // Sanitize metadata
-    const title = sanitizeForHeader(rawTitle || file.name);
-    const artist = sanitizeForHeader(rawArtist || 'Unknown Artist');
+    // Sanitize for IA
+    const sanitizeForIA = (str: string) =>
+      str.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-{2,}/g, '-').toLowerCase();
 
-    // Convert File to Buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Sanitize filename - remove special characters
-    const sanitizedFileName = file.name
-      .replace(/['']/g, "'")  // Replace curly quotes with straight quotes
-      .replace(/[""]/g, '"')   // Replace curly double quotes
-      .replace(/[^\x00-\x7F]/g, '')  // Remove any non-ASCII characters
-      .replace(/[^a-zA-Z0-9._-]/g, '_');  // Replace other special chars with underscore
-
-    // Generate unique identifier for IA
+    const sanitizedTitle = sanitizeForIA(title);
+    const sanitizedArtist = sanitizeForIA(artist);
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 11);
-    const iaIdentifier = `music_${timestamp}_${random}`;
+    const randomStr = Math.random().toString(36).substring(2, 15);
     
-    // Upload to Internet Archive S3 API using LOW authorization
-    const uploadUrl = `https://s3.us.archive.org/${iaIdentifier}/${encodeURIComponent(sanitizedFileName)}`;
-    
-    console.log('Uploading to:', uploadUrl);
-    console.log('Sanitized title:', title);
-    console.log('Sanitized artist:', artist);
+    const bucketName = `music-${timestamp}-${randomStr}`;
+    const fileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+    const contentType = file.type || 'audio/mpeg';
+
+    console.log('Bucket:', bucketName);
+    console.log('Filename:', fileName);
+
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const date = new Date().toUTCString();
+
+    // Create signature
+    const authorization = createIASignature(
+      'PUT',
+      bucketName,
+      fileName,
+      contentType,
+      date,
+      cleanUsername,
+      cleanPassword
+    );
+
+    console.log('Authorization created');
+
+    // Upload to Internet Archive
+    const uploadUrl = `https://s3.us.archive.org/${bucketName}/${fileName}`;
     
     const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
       headers: {
-        'Authorization': `LOW ${iaAccessKey}:${iaSecretKey}`,
+        'Authorization': authorization,
+        'Content-Type': contentType,
+        'Date': date,
+        'x-amz-auto-make-bucket': '1',
         'x-archive-meta-mediatype': 'audio',
-        'x-archive-meta-collection': 'opensource_audio',
-        'x-archive-meta-title': title,
-        'x-archive-meta-creator': artist,
-        'x-archive-auto-make-bucket': '1',
+        'x-archive-meta-title': sanitizedTitle,
+        'x-archive-meta-creator': sanitizedArtist,
+        'x-archive-meta01-collection': 'opensource_audio',
       },
-      body: buffer,
+      body: fileBuffer,
     });
 
+    console.log('Response status:', uploadResponse.status);
     const responseText = await uploadResponse.text();
-    console.log('IA Response:', uploadResponse.status, responseText);
+    console.log('Response body:', responseText.substring(0, 500));
 
     if (!uploadResponse.ok) {
-      console.error('IA upload failed:', responseText);
-      return NextResponse.json({ 
-        error: 'Upload to Internet Archive failed',
-        details: responseText 
-      }, { status: 500 });
+      throw new Error(`IA upload failed: ${uploadResponse.status} - ${responseText}`);
     }
 
-    const playbackUrl = `https://archive.org/download/${iaIdentifier}/${sanitizedFileName}`;
+    const playbackUrl = `https://archive.org/download/${bucketName}/${fileName}`;
+
+    console.log('✅ Upload successful!');
 
     return NextResponse.json({
       success: true,
-      identifier: iaIdentifier,
-      playbackUrl: playbackUrl,
-      fileName: sanitizedFileName,
+      playbackUrl,
+      identifier: bucketName,
     });
-
-  } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json({ 
-      error: 'Upload failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+  } catch (error: any) {
+    console.error('❌ Upload error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Upload failed' },
+      { status: 500 }
+    );
   }
 }
