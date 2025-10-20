@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, ExternalLink, Trash2, Download } from "lucide-react";
+import { MoreVertical, ExternalLink, Trash2, Download, ListPlus, PlayCircle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +22,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAudio } from "@/contexts/audio-context";
+import { useToast } from "@/hooks/use-toast";
 
 interface TrackMenuProps {
   albumId: string;
@@ -29,6 +31,7 @@ interface TrackMenuProps {
   trackTitle: string;
   playbackUrl?: string;
   onDeleteStart?: () => void;
+  track?: any; // Full track object for queue
 }
 
 export function TrackMenu({
@@ -37,25 +40,63 @@ export function TrackMenu({
   trackTitle,
   playbackUrl,
   onDeleteStart,
+  track,
 }: TrackMenuProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteFromIA, setDeleteFromIA] = useState(false);
   const router = useRouter();
+  const { addToQueue, playNext, currentTrack } = useAudio();
+  const { toast } = useToast();
+
+  const handleAddToQueue = () => {
+    if (!track) return;
+    
+    // Don't add if it's the current track
+    if (currentTrack?.id === track.id) {
+      toast({
+        title: "Already playing",
+        description: "This track is currently playing.",
+      });
+      return;
+    }
+
+    addToQueue(track);
+    toast({
+      title: "Added to queue",
+      description: `"${trackTitle}" has been added to the queue.`,
+    });
+  };
+
+  const handlePlayNext = () => {
+    if (!track) return;
+
+    // Don't add if it's the current track
+    if (currentTrack?.id === track.id) {
+      toast({
+        title: "Already playing",
+        description: "This track is currently playing.",
+      });
+      return;
+    }
+
+    playNext(track);
+    toast({
+      title: "Playing next",
+      description: `"${trackTitle}" will play next.`,
+    });
+  };
 
   const handleDelete = async () => {
     setDeleting(true);
 
     try {
-      // Start the delete animation immediately
       if (onDeleteStart) {
         onDeleteStart();
       }
 
-      // Close dialog
       setShowDeleteDialog(false);
 
-      // Perform the actual delete in the background
       const response = await fetch(`/api/albums/${albumId}/tracks/${trackId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -65,12 +106,9 @@ export function TrackMenu({
       if (!response.ok) {
         throw new Error("Failed to delete track");
       }
-
-      // Don't need to reload - animation handler does it
     } catch (error) {
       console.error("Delete failed:", error);
       setDeleting(false);
-      // If delete fails, reload to restore proper state
       window.location.reload();
     }
   };
@@ -98,9 +136,6 @@ export function TrackMenu({
   const handleViewIA = () => {
     if (!playbackUrl) return;
 
-    // Try to extract identifier from either format:
-    // https://s3.us.archive.org/music-123456-abc/file.mp3
-    // https://archive.org/download/music-123456-abc/file.mp3
     const s3Match = playbackUrl.match(/s3\.us\.archive\.org\/([^/]+)/);
     const downloadMatch = playbackUrl.match(/\/download\/([^/]+)\//);
 
@@ -125,6 +160,25 @@ export function TrackMenu({
           align="end"
           className="bg-card/95 backdrop-blur-md border-border/50"
         >
+          {track && currentTrack?.id !== track.id && (
+            <>
+              <DropdownMenuItem
+                onClick={handlePlayNext}
+                className="cursor-pointer focus:bg-secondary/50"
+              >
+                <PlayCircle className="mr-2 h-4 w-4" />
+                Play Next
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleAddToQueue}
+                className="cursor-pointer focus:bg-secondary/50"
+              >
+                <ListPlus className="mr-2 h-4 w-4" />
+                Add to Queue
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-border/50" />
+            </>
+          )}
           <DropdownMenuItem
             onClick={handleDownload}
             className="cursor-pointer focus:bg-secondary/50"

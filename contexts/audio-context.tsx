@@ -7,6 +7,7 @@ import React, {
   useRef,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
 
 interface Track {
@@ -46,6 +47,13 @@ interface AudioContextType {
   setVolume: (volume: number) => void;
   isMuted: boolean;
   toggleMute: () => void;
+  // Queue management - unified queue
+  fullQueue: Track[];
+  addToQueue: (track: Track) => void;
+  removeFromQueue: (trackId: string) => void;
+  clearQueue: () => void;
+  reorderQueue: (startIndex: number, endIndex: number) => void;
+  playNext: (track: Track) => void;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
@@ -54,6 +62,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [playlist, setPlaylist] = useState<Track[]>([]);
   const [originalPlaylist, setOriginalPlaylist] = useState<Track[]>([]);
+  const [queue, setQueue] = useState<Track[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -67,6 +76,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const preloadedTrackId = useRef<string | null>(null);
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const previousVolumeRef = useRef(1);
+
+  // Compute full queue (manual queue + upcoming playlist tracks)
+  const fullQueue = useMemo(() => {
+    const upcomingPlaylistTracks = playlist
+      .slice(currentIndex + 1)
+      .filter((t) => !t.processing);
+    return [...queue, ...upcomingPlaylistTracks];
+  }, [queue, playlist, currentIndex]);
 
   useEffect(() => {
     const audio = new Audio();
@@ -97,7 +114,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       audio.pause();
       preloadAudio.pause();
 
-      // Clear pending play operations
       if (playTimeoutRef.current) {
         clearTimeout(playTimeoutRef.current);
       }
@@ -113,6 +129,69 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
     return shuffled;
   };
+
+  // Queue management functions
+  const addToQueue = useCallback((track: Track) => {
+    setQueue((prev) => [...prev, track]);
+  }, []);
+
+  const removeFromQueue = useCallback(
+    (trackId: string) => {
+      // Check if it's in the manual queue
+      const inManualQueue = queue.some((t) => t.id === trackId);
+
+      if (inManualQueue) {
+        setQueue((prev) => prev.filter((t) => t.id !== trackId));
+      } else {
+        // It's in the playlist, remove it from both playlist and original
+        setPlaylist((prev) => prev.filter((t) => t.id !== trackId));
+        setOriginalPlaylist((prev) => prev.filter((t) => t.id !== trackId));
+      }
+    },
+    [queue]
+  );
+
+  const clearQueue = useCallback(() => {
+    setQueue([]);
+  }, []);
+
+  const reorderQueue = useCallback(
+    (startIndex: number, endIndex: number) => {
+      const upcomingPlaylistTracks = playlist
+        .slice(currentIndex + 1)
+        .filter((t) => !t.processing);
+      const totalQueue = [...queue, ...upcomingPlaylistTracks];
+
+      const result = Array.from(totalQueue);
+      const [removed] = result.splice(startIndex, 1);
+      result.splice(endIndex, 0, removed);
+
+      // Split back into manual queue and playlist
+      const newQueue = result.slice(0, queue.length);
+      const newUpcoming = result.slice(queue.length);
+
+      setQueue(newQueue);
+
+      // Update playlist order for the upcoming tracks
+      if (newUpcoming.length > 0) {
+        const beforeCurrent = playlist.slice(0, currentIndex + 1);
+        const afterReorder = [...beforeCurrent, ...newUpcoming];
+        // Add any tracks that weren't in upcoming (after the visible queue)
+        const remainingTracks = playlist.slice(
+          currentIndex + 1 + upcomingPlaylistTracks.length
+        );
+        const newPlaylist = [...afterReorder, ...remainingTracks];
+        setPlaylist(newPlaylist);
+        setOriginalPlaylist(newPlaylist);
+      }
+    },
+    [queue, playlist, currentIndex]
+  );
+
+  const playNext = useCallback((track: Track) => {
+    // Add track to the front of the queue
+    setQueue((prev) => [track, ...prev]);
+  }, []);
 
   // Volume control
   const setVolume = useCallback((newVolume: number) => {
@@ -132,12 +211,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (!audio) return;
 
     if (isMuted) {
-      // Unmute - restore previous volume
       audio.volume = previousVolumeRef.current;
       setVolumeState(previousVolumeRef.current);
       setIsMuted(false);
     } else {
-      // Mute - save current volume and set to 0
       previousVolumeRef.current = volume;
       audio.volume = 0;
       setVolumeState(0);
@@ -145,13 +222,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isMuted, volume]);
 
-  // Toggle shuffle - simplified to avoid errors
   const toggleShuffle = useCallback(() => {
     setShuffle((prev) => {
       const newShuffle = !prev;
 
       if (newShuffle) {
-        // Turning shuffle ON
         if (playlist.length === 0) return newShuffle;
 
         const currentTrackInPlaylist = playlist[currentIndex];
@@ -163,7 +238,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         setPlaylist(newPlaylist);
         setCurrentIndex(0);
       } else {
-        // Turning shuffle OFF
         if (originalPlaylist.length === 0) return newShuffle;
 
         const currentTrackId = playlist[currentIndex]?.id;
@@ -184,15 +258,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
   }, [playlist, currentIndex, originalPlaylist]);
 
-  // Auto-preload next track
+  // Auto-preload next track (queue or playlist)
   useEffect(() => {
-    if (playlist.length > 0 && currentIndex < playlist.length - 1) {
-      const nextTrack = playlist[currentIndex + 1];
-      if (nextTrack && nextTrack.id !== preloadedTrackId.current) {
-        preload(nextTrack);
-      }
+    let nextTrack: Track | null = null;
+
+    if (queue.length > 0) {
+      // If there's a queue, preload the first queued track
+      nextTrack = queue[0];
+    } else if (playlist.length > 0 && currentIndex < playlist.length - 1) {
+      // Otherwise preload next track in playlist
+      nextTrack = playlist[currentIndex + 1];
     }
-  }, [currentIndex, playlist]);
+
+    if (nextTrack && nextTrack.id !== preloadedTrackId.current) {
+      preload(nextTrack);
+    }
+  }, [currentIndex, playlist, queue]);
 
   // Handle track ended
   useEffect(() => {
@@ -201,26 +282,28 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
     const handleEnded = () => {
       if (repeatMode === "one") {
-        // Repeat current track
         audio.currentTime = 0;
         audio.play();
+      } else if (queue.length > 0) {
+        // Play next track from queue
+        const nextTrack = queue[0];
+        setQueue((prev) => prev.slice(1)); // Remove from queue
+        play(nextTrack);
       } else if (currentIndex < playlist.length - 1) {
-        // Play next track
+        // Play next track from playlist
         next();
       } else if (repeatMode === "all" && playlist.length > 0) {
-        // Loop back to first track
         const firstTrack = playlist[0];
         setCurrentIndex(0);
         play(firstTrack);
       } else {
-        // Stop playing
         setIsPlaying(false);
       }
     };
 
     audio.addEventListener("ended", handleEnded);
     return () => audio.removeEventListener("ended", handleEnded);
-  }, [currentIndex, playlist, repeatMode]);
+  }, [currentIndex, playlist, repeatMode, queue]);
 
   const preload = useCallback((track: Track) => {
     const preloadAudio = preloadAudioRef.current;
@@ -246,7 +329,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Clear any pending play operations
       if (playTimeoutRef.current) {
         clearTimeout(playTimeoutRef.current);
       }
@@ -259,7 +341,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         setCurrentIndex(index >= 0 ? index : 0);
       }
 
-      // If same track, just resume
       if (currentTrack?.id === track.id && audio.src) {
         try {
           await audio.play();
@@ -267,21 +348,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         } catch (error: any) {
           if (error.name !== "AbortError") {
             console.error("Play error (resume):", error);
-            console.error("Error details:", {
-              name: error?.name,
-              message: error?.message,
-              type: error?.type,
-              currentSrc: audio?.src,
-              networkState: audio?.networkState,
-              readyState: audio?.readyState,
-              audioError: audio?.error,
-            });
           }
         }
         return;
       }
 
-      // Pause and reset before loading new track
       audio.pause();
       setIsPlaying(false);
       audio.currentTime = 0;
@@ -299,10 +370,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         audio.src = audioUrl;
       }
 
-      // Set track immediately so UI updates
       setCurrentTrack(track);
 
-      // Debounce the actual play operation slightly
       playTimeoutRef.current = setTimeout(async () => {
         try {
           await new Promise<void>((resolve, reject) => {
@@ -326,29 +395,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           await audio.play();
           setIsPlaying(true);
         } catch (error: any) {
-          // Ignore abort and pause interruption errors
           if (
             error.name !== "AbortError" &&
             !error.message?.includes("pause")
           ) {
             console.error("Play error (new track):", error);
-            console.error("Error details:", {
-              track: track.title,
-              url: audioUrl,
-              name: error?.name,
-              message: error?.message,
-              type: error?.type,
-              currentSrc: audio?.src,
-              networkState: audio?.networkState,
-              readyState: audio?.readyState,
-              audioError: audio?.error,
-              errorCode: audio?.error?.code,
-              errorMessage: audio?.error?.message,
-            });
           }
           setIsPlaying(false);
         }
-      }, 50); // 50ms debounce
+      }, 50);
     },
     [currentTrack, shuffle]
   );
@@ -369,7 +424,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const next = useCallback(() => {
-    // If repeat one is on, just restart the current track
     if (repeatMode === "one") {
       const audio = audioRef.current;
       if (audio) {
@@ -379,7 +433,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Find next non-processing track
+    // Check queue first
+    if (queue.length > 0) {
+      const nextTrack = queue[0];
+      setQueue((prev) => prev.slice(1)); // Remove from queue
+      play(nextTrack);
+      return;
+    }
+
+    // Find next non-processing track in playlist
     let nextIndex = currentIndex + 1;
     while (nextIndex < playlist.length) {
       const nextTrack = playlist[nextIndex];
@@ -391,20 +453,22 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       nextIndex++;
     }
 
-    // No more playable tracks, check for repeat all
+    // If repeat all is on and we're at the end, loop back
     if (repeatMode === "all" && playlist.length > 0) {
-      // Find first non-processing track from beginning
       const firstPlayableTrack = playlist.find((t) => !t.processing);
       if (firstPlayableTrack) {
         const index = playlist.findIndex((t) => t.id === firstPlayableTrack.id);
         setCurrentIndex(index);
         play(firstPlayableTrack);
+        return;
       }
     }
-  }, [currentIndex, playlist, play, repeatMode]);
+
+    // If we can't find anything, stop playing
+    setIsPlaying(false);
+  }, [currentIndex, playlist, play, repeatMode, queue]);
 
   const previous = useCallback(() => {
-    // If repeat one is on, just restart the current track
     if (repeatMode === "one") {
       const audio = audioRef.current;
       if (audio) {
@@ -422,7 +486,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Find previous non-processing track
     let prevIndex = currentIndex - 1;
     while (prevIndex >= 0) {
       const prevTrack = playlist[prevIndex];
@@ -434,9 +497,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       prevIndex--;
     }
 
-    // No previous playable tracks, check for repeat all
     if (repeatMode === "all" && playlist.length > 0) {
-      // Find last non-processing track
       for (let i = playlist.length - 1; i >= 0; i--) {
         if (!playlist[i].processing) {
           setCurrentIndex(i);
@@ -473,10 +534,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   );
 
   const hasNext =
-    playlist.length > 0 &&
-    (currentIndex < playlist.length - 1 || repeatMode === "all");
+    repeatMode === "one" ||
+    repeatMode === "all" ||
+    queue.length > 0 ||
+    (playlist.length > 0 && currentIndex < playlist.length - 1);
+
   const hasPrevious =
-    playlist.length > 0 && (currentIndex > 0 || repeatMode === "all");
+    repeatMode === "one" ||
+    repeatMode === "all" ||
+    (playlist.length > 0 && currentIndex > 0);
 
   return (
     <AudioContext.Provider
@@ -503,6 +569,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         setVolume,
         isMuted,
         toggleMute,
+        fullQueue,
+        addToQueue,
+        removeFromQueue,
+        clearQueue,
+        reorderQueue,
+        playNext,
       }}
     >
       {children}

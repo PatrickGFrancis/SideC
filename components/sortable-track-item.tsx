@@ -83,14 +83,14 @@ export function SortableTrackItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ 
-    id: track.id, 
-    disabled: disabled || isProcessing || isDeleting || isUploading 
+  } = useSortable({
+    id: track.id,
+    disabled: disabled || isProcessing || isDeleting || isUploading,
   });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: isDeleting ? 'all 0.3s ease-out' : transition,
+    transition: isDeleting ? "all 0.3s ease-out" : transition,
   };
 
   const handleClick = async () => {
@@ -105,7 +105,12 @@ export function SortableTrackItem({
   };
 
   const handleMouseEnter = () => {
-    if (!isProcessing && !isDeleting && !isUploading && track.id !== currentTrack?.id) {
+    if (
+      !isProcessing &&
+      !isDeleting &&
+      !isUploading &&
+      track.id !== currentTrack?.id
+    ) {
       preload({
         ...track,
         albumTitle,
@@ -121,10 +126,13 @@ export function SortableTrackItem({
       style={style}
       className={cn(
         "group w-full rounded-xl px-4 py-3 transition-all duration-200",
-        !isUploading && "cursor-pointer hover:bg-secondary/50 hover:scale-[1.01] active:scale-[0.99]",
+        !isUploading &&
+          "cursor-pointer hover:bg-secondary/50 hover:scale-[1.01] active:scale-[0.99]",
         isCurrentTrack && "bg-secondary border border-primary/20 glow-primary",
-        (isProcessing || isLoading) && "opacity-50 cursor-not-allowed hover:scale-100",
-        isUploading && "bg-secondary/30 border border-primary/30 cursor-default",
+        (isProcessing || isLoading) &&
+          "opacity-50 cursor-not-allowed hover:scale-100",
+        isUploading &&
+          "bg-secondary/30 border border-primary/30 cursor-default",
         isDragging && "opacity-50 shadow-xl z-50 scale-105",
         isDeleting && "opacity-0 scale-95 -translate-x-4 pointer-events-none"
       )}
@@ -219,7 +227,8 @@ export function SortableTrackItem({
               <div className="h-3 w-1 animate-pulse bg-primary rounded-full delay-150" />
             </div>
           ) : (
-            !isProcessing && !isUploading && (
+            !isProcessing &&
+            !isUploading && (
               <span className="text-sm text-muted-foreground font-mono tabular-nums">
                 {formatDuration(track.duration)}
               </span>
@@ -240,6 +249,7 @@ export function SortableTrackItem({
                 trackTitle={track.title}
                 playbackUrl={track.playbackUrl || track.audio_url}
                 onDeleteStart={() => onDelete?.(track.id)}
+                track={track}
               />
             </div>
           )}

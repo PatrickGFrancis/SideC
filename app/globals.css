@@ -1,77 +1,77 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
   /* Light Theme */
-  --background: 0 0% 100%;           /* White */
-  --foreground: 222 47% 11%;         /* Near black */
-  
-  --card: 0 0% 98%;                  /* Light gray */
+  --background: 0 0% 100%; /* White */
+  --foreground: 222 47% 11%; /* Near black */
+
+  --card: 0 0% 98%; /* Light gray */
   --card-foreground: 222 47% 11%;
-  
+
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  
-  --primary: 217 91% 60%;            /* Bright blue */
+
+  --primary: 217 91% 60%; /* Bright blue */
   --primary-foreground: 210 20% 98%;
-  
-  --secondary: 214 32% 91%;          /* Light blue-gray */
+
+  --secondary: 214 32% 91%; /* Light blue-gray */
   --secondary-foreground: 222 47% 11%;
-  
+
   --muted: 214 32% 91%;
-  --muted-foreground: 215 16% 47%;   /* Medium gray */
-  
-  --accent: 250 95% 76%;             /* Purple accent */
+  --muted-foreground: 215 16% 47%; /* Medium gray */
+
+  --accent: 250 95% 76%; /* Purple accent */
   --accent-foreground: 222 47% 11%;
-  
+
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 20% 98%;
-  
+
   --border: 214 32% 91%;
   --input: 214 32% 91%;
   --ring: 217 91% 60%;
-  
+
   --chart-1: 217 91% 60%;
   --chart-2: 250 95% 76%;
   --chart-3: 142 76% 36%;
   --chart-4: 47 96% 53%;
   --chart-5: 0 84% 60%;
-  
+
   --radius: 0.75rem;
 }
 
 .dark {
   /* Dark Theme */
-  --background: 215 28% 8%;          /* Deep blue-black */
-  --foreground: 210 20% 98%;         /* Off-white */
-  
-  --card: 217 25% 11%;               /* Slightly lighter than bg */
+  --background: 215 28% 8%; /* Deep blue-black */
+  --foreground: 210 20% 98%; /* Off-white */
+
+  --card: 217 25% 11%; /* Slightly lighter than bg */
   --card-foreground: 210 20% 98%;
-  
+
   --popover: 217 25% 13%;
   --popover-foreground: 210 20% 98%;
-  
-  --primary: 217 91% 60%;            /* Bright blue */
+
+  --primary: 217 91% 60%; /* Bright blue */
   --primary-foreground: 210 20% 98%;
-  
-  --secondary: 217 25% 16%;          /* Subtle gray-blue */
+
+  --secondary: 217 25% 16%; /* Subtle gray-blue */
   --secondary-foreground: 210 20% 98%;
-  
+
   --muted: 217 20% 20%;
-  --muted-foreground: 215 16% 65%;   /* Medium gray */
-  
-  --accent: 250 95% 76%;             /* Purple accent */
+  --muted-foreground: 215 16% 65%; /* Medium gray */
+
+  --accent: 250 95% 76%; /* Purple accent */
   --accent-foreground: 210 20% 98%;
-  
+
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 20% 98%;
-  
+
   --border: 217 20% 18%;
   --input: 217 20% 18%;
   --ring: 217 91% 60%;
-  
+
   --chart-1: 217 91% 60%;
   --chart-2: 250 95% 76%;
   --chart-3: 142 76% 36%;
@@ -82,7 +82,7 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  
+
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
@@ -102,7 +102,7 @@
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-  
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -116,6 +116,11 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+  
+  /* Safe area padding for bottom player */
+  .pb-player-safe {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
 }
 
 /* Custom enhancements */
@@ -128,16 +133,16 @@
       hsl(217 25% 10%) 100%
     );
   }
-  
+
   /* Glow effect for interactive elements */
   .glow-primary {
     box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
   }
-  
+
   .glow-accent {
     box-shadow: 0 0 20px -5px hsl(var(--accent) / 0.3);
   }
-  
+
   /* Smooth glass morphism effect */
   .glass {
     background: hsl(var(--card) / 0.6);
