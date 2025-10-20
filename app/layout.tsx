@@ -4,7 +4,6 @@ import { GeistMono } from "geist/font/mono";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
-import { MobileNav } from "@/components/mobile-nav";
 import { AudioProvider } from "@/contexts/audio-context";
 import { GlobalAudioPlayer } from "@/components/global-audio-player";
 
@@ -46,7 +45,6 @@ export default function RootLayout({
         <AudioProvider>
           {children}
           <GlobalAudioPlayer />
-          <MobileNav />
           <Toaster />
         </AudioProvider>
         <Analytics />

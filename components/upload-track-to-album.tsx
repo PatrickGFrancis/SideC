@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -12,10 +12,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
-import { Upload, Loader2 } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Upload, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface UploadTrackToAlbumProps {
   albumId: string;
@@ -24,13 +24,16 @@ interface UploadTrackToAlbumProps {
 export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState('');
-  const [artist, setArtist] = useState('');
+  const [title, setTitle] = useState("");
+  const [artist, setArtist] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStage, setUploadStage] = useState<'preparing' | 'uploading' | 'processing' | 'saving' | 'complete'>('preparing');
+  const [uploadStage, setUploadStage] = useState<"preparing" | "uploading" | "processing" | "saving" | "complete">("preparing");
   const [isIAConnected, setIsIAConnected] = useState(false);
-  const [iaCredentials, setIaCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [iaCredentials, setIaCredentials] = useState<{
+    username: string;
+    password: string;
+  } | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -38,20 +41,20 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
     // Check if user has IA credentials
     const checkCredentials = async () => {
       try {
-        const response = await fetch('/api/ia-credentials');
+        const response = await fetch("/api/ia-credentials");
         const data = await response.json();
         setIsIAConnected(data.hasCredentials);
         if (data.hasCredentials) {
           setIaCredentials({
             username: data.username,
-            password: data.password
+            password: data.password,
           });
         }
       } catch (error) {
         setIsIAConnected(false);
       }
     };
-    
+
     checkCredentials();
   }, [open]);
 
@@ -60,25 +63,25 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
     if (selectedFile) {
       setFile(selectedFile);
       // Auto-fill title from filename
-      const nameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, '');
+      const nameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, "");
       setTitle(nameWithoutExt);
     }
   };
 
   const getUploadStatusText = () => {
     switch (uploadStage) {
-      case 'preparing':
-        return 'Preparing upload...';
-      case 'uploading':
+      case "preparing":
+        return "Preparing upload...";
+      case "uploading":
         return `Uploading to Internet Archive... ${uploadProgress}%`;
-      case 'processing':
-        return 'Processing on Internet Archive...';
-      case 'saving':
-        return 'Saving track to album...';
-      case 'complete':
-        return 'Upload complete!';
+      case "processing":
+        return "Processing audio file...";
+      case "saving":
+        return "Saving track to album...";
+      case "complete":
+        return "Upload complete!";
       default:
-        return '';
+        return "";
     }
   };
 
@@ -87,32 +90,32 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
 
     setUploading(true);
     setUploadProgress(0);
-    setUploadStage('preparing');
+    setUploadStage("preparing");
 
     const iaFormData = new FormData();
-    iaFormData.append('file', file);
-    iaFormData.append('iaUsername', iaCredentials.username);
-    iaFormData.append('iaPassword', iaCredentials.password);
-    iaFormData.append('title', title || file.name);
-    iaFormData.append('artist', artist || 'Unknown Artist');
+    iaFormData.append("file", file);
+    iaFormData.append("iaUsername", iaCredentials.username);
+    iaFormData.append("iaPassword", iaCredentials.password);
+    iaFormData.append("title", title || file.name);
+    iaFormData.append("artist", artist || "Unknown Artist");
 
     let progressInterval: NodeJS.Timeout | null = null;
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setUploadStage('uploading');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      setUploadStage("uploading");
 
       // Simulate smooth progress based on file size
       const estimatedSeconds = Math.max(10, (file.size / 1024 / 1024) * 2);
       progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
+        setUploadProgress((prev) => {
           if (prev >= 95) return prev;
           return Math.min(prev + 2, 95);
         });
       }, (estimatedSeconds / 50) * 1000);
 
-      const response = await fetch('/api/upload-to-ia', {
-        method: 'POST',
+      const response = await fetch("/api/upload-to-ia", {
+        method: "POST",
         body: iaFormData,
       });
 
@@ -123,62 +126,90 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
       const iaData = await response.json();
 
       if (!iaData.success) {
-        throw new Error(iaData.error || 'Upload failed');
+        throw new Error(iaData.error || "Upload failed");
       }
 
       setUploadProgress(100);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setUploadStage('processing');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setUploadStage('saving');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      setUploadStage("processing");
+
+      // Fetch duration from local file while IA processes
+      let fetchedDuration = 0;
+      try {
+        const audioForDuration = new Audio();
+        audioForDuration.preload = 'metadata';
+        
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Timeout'));
+          }, 10000);
+
+          audioForDuration.addEventListener('loadedmetadata', () => {
+            clearTimeout(timeout);
+            fetchedDuration = Math.floor(audioForDuration.duration);
+            console.log('Duration fetched during upload:', fetchedDuration);
+            resolve(null);
+          });
+
+          audioForDuration.addEventListener('error', () => {
+            clearTimeout(timeout);
+            reject(new Error('Failed to load audio'));
+          });
+
+          // Use local blob URL - no CORS issues!
+          audioForDuration.src = URL.createObjectURL(file);
+        });
+      } catch (error) {
+        console.warn('Could not fetch duration from file:', error);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setUploadStage("saving");
 
       const trackData = {
         title: title || file.name,
-        artist: artist || 'Unknown Artist',
+        artist: artist || "Unknown Artist",
         playbackUrl: iaData.playbackUrl,
+        iaDetailsUrl: iaData.iaDetailsUrl,
         fileName: file.name,
+        duration: fetchedDuration, // Include duration!
       };
 
       const dbResponse = await fetch(`/api/albums/${albumId}/tracks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(trackData),
       });
 
       const result = await dbResponse.json();
 
       if (result.success) {
-        setUploadStage('complete');
-        toast({
-          title: 'Track uploaded!',
-          description: `"${title || file.name}" has been added to the album.`,
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 500));
+        setUploadStage("complete");
 
         setFile(null);
-        setTitle('');
-        setArtist('');
+        setTitle("");
+        setArtist("");
         setUploadProgress(0);
-        setUploadStage('preparing');
+        setUploadStage("preparing");
         setOpen(false);
-        router.refresh();
+
+        // Reload - duration will be there!
+        window.location.reload();
       } else {
-        throw new Error('Failed to save track');
+        throw new Error("Failed to save track");
       }
     } catch (error: any) {
       if (progressInterval) {
         clearInterval(progressInterval);
       }
-      console.error('Upload error:', error);
+      console.error("Upload error:", error);
       toast({
-        title: 'Upload failed',
-        description: error.message || 'Please try again.',
-        variant: 'destructive',
+        title: "Upload failed",
+        description: error.message || "Please try again.",
+        variant: "destructive",
       });
       setUploadProgress(0);
-      setUploadStage('preparing');
-    } finally {
+      setUploadStage("preparing");
       setUploading(false);
     }
   };
@@ -194,9 +225,7 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
       <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
         <DialogHeader>
           <DialogTitle>Upload Track</DialogTitle>
-          <DialogDescription>
-            Add a new track to this album
-          </DialogDescription>
+          <DialogDescription>Add a new track to this album</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {!isIAConnected && (
@@ -247,17 +276,19 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
           {uploading && (
             <div className="space-y-3 py-2">
               <div className="flex items-center gap-2 text-sm font-medium">
-                {uploadStage === 'processing' || uploadStage === 'saving' ? (
+                {(uploadStage === "processing" || uploadStage === "saving") && (
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                ) : null}
-                <span className="text-foreground/90">{getUploadStatusText()}</span>
+                )}
+                <span className="text-foreground/90">
+                  {getUploadStatusText()}
+                </span>
               </div>
-              
-              {uploadStage === 'uploading' && (
+
+              {uploadStage === "uploading" && (
                 <Progress value={uploadProgress} className="h-2" />
               )}
-              
-              {(uploadStage === 'processing' || uploadStage === 'saving') && (
+
+              {(uploadStage === "processing" || uploadStage === "saving") && (
                 <Progress value={undefined} className="h-2" />
               )}
             </div>
@@ -274,7 +305,7 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
                 Uploading...
               </span>
             ) : (
-              'Upload Track'
+              "Upload Track"
             )}
           </Button>
         </div>

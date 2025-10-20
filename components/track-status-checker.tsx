@@ -1,78 +1,94 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface Track {
   id: string;
-  playbackUrl?: string;
-  audio_url?: string;
   processing?: boolean;
+  playbackUrl?: string;
 }
 
 interface TrackStatusCheckerProps {
   tracks: Track[];
+  albumId: string;
 }
 
-export function TrackStatusChecker({ tracks }: TrackStatusCheckerProps) {
+export function TrackStatusChecker({ tracks, albumId }: TrackStatusCheckerProps) {
   const router = useRouter();
-  const [checkedTracks, setCheckedTracks] = useState<Set<string>>(new Set());
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const processingTracksRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const processingTracks = tracks.filter(t => 
-      t.processing === true && !checkedTracks.has(t.id)
-    );
-    
-    if (processingTracks.length === 0) return;
+    const processingTracks = tracks.filter(t => t.processing && t.playbackUrl);
 
-    console.log(`Checking status for ${processingTracks.length} processing tracks`);
+    console.log('TrackStatusChecker: Processing tracks count:', processingTracks.length);
 
-    const checkInterval = setInterval(async () => {
-      const stillProcessing = [];
+    if (processingTracks.length > 0) {
+      processingTracksRef.current = new Set(processingTracks.map(t => t.id));
 
-      for (const track of processingTracks) {
-        const playbackUrl = track.playbackUrl || track.audio_url;
-        if (!playbackUrl) continue;
-
-        try {
-          console.log(`Checking status for track: ${track.id}`);
-          
-          const response = await fetch('/api/check-ia-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              trackId: track.id,
-              playbackUrl: playbackUrl,
-            }),
-          });
-
-          const data = await response.json();
-          
-          if (data.ready) {
-            console.log(`Track ${track.id} is now ready!`);
-            // Mark this track as checked
-            setCheckedTracks(prev => new Set([...prev, track.id]));
-            // Refresh the page to show the track as ready
-            router.refresh();
-          } else {
-            console.log(`Track ${track.id} still processing...`);
-            stillProcessing.push(track);
+      const checkStatus = async () => {
+        console.log('Checking status for', processingTracks.length, 'tracks');
+        
+        const checks = processingTracks.map(async (track) => {
+          try {
+            console.log('Checking track:', track.id, track.playbackUrl);
+            const response = await fetch('/api/check-ia-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                trackId: track.id,
+                playbackUrl: track.playbackUrl,
+              }),
+            });
+            const data = await response.json();
+            console.log('Track', track.id, 'ready:', data.ready);
+            return { trackId: track.id, ready: data.ready };
+          } catch (error) {
+            console.error('Error checking track:', track.id, error);
+            return { trackId: track.id, ready: false };
           }
-        } catch (error) {
-          console.error('Error checking track status:', error);
-          stillProcessing.push(track);
+        });
+
+        const results = await Promise.all(checks);
+        const anyReady = results.some(r => r.ready);
+
+        console.log('Check results:', results, 'Any ready:', anyReady);
+
+        if (anyReady) {
+          console.log('Tracks ready! Reloading page...');
+          // Force a hard reload to ensure tracks show as playable
+          window.location.reload();
         }
+      };
+
+      // Check immediately
+      console.log('Starting status checks for album:', albumId);
+      checkStatus();
+
+      // Then check every 10 seconds
+      intervalRef.current = setInterval(checkStatus, 10000);
+    } else {
+      console.log('No processing tracks');
+      // No processing tracks, stop polling
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
 
-      // If no tracks are still processing, clear the interval
-      if (stillProcessing.length === 0) {
-        console.log('All tracks are ready, stopping status checker');
-        clearInterval(checkInterval);
+      // If we had processing tracks before but none now, refresh once more
+      if (processingTracksRef.current.size > 0) {
+        processingTracksRef.current.clear();
+        window.location.reload();
       }
-    }, 15000); // Check every 15 seconds (more frequent)
+    }
 
-    return () => clearInterval(checkInterval);
-  }, [tracks, router, checkedTracks]);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [tracks, albumId, router]);
 
   return null;
 }

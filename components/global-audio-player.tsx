@@ -46,7 +46,7 @@ export function GlobalAudioPlayer() {
   return (
     <>
       <div
-        className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border/50 shadow-2xl z-40 cursor-pointer transition-all duration-200 hover:bg-card"
+        className="fixed bottom-0 md:bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border/50 shadow-2xl z-40 cursor-pointer transition-all duration-200 hover:bg-card"
         onClick={() => setIsExpanded(true)}
       >
         <div className="relative">

@@ -1,66 +1,73 @@
-import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
-    const supabase = await createServerSupabaseClient()
-    
+    const { id } = await params;
+    const supabase = await createServerSupabaseClient();
+
     // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { title, artist, playbackUrl, fileName } = await request.json()
+    const { title, artist, playbackUrl, fileName, duration } = await request.json();
 
     // Verify album belongs to user
     const { data: album, error: albumError } = await supabase
-      .from('albums')
-      .select('id, artist')
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .single()
+      .from("albums")
+      .select("id, artist")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
 
     if (albumError || !album) {
-      return NextResponse.json({ error: 'Album not found' }, { status: 404 })
+      return NextResponse.json({ error: "Album not found" }, { status: 404 });
     }
 
-    // Get current track count for track number
-    const { count } = await supabase
-      .from('tracks')
-      .select('*', { count: 'exact', head: true })
-      .eq('album_id', id)
+    // Get the highest track_number to add at the end
+    const { data: lastTrack } = await supabase
+      .from("tracks")
+      .select("track_number")
+      .eq("album_id", id)
+      .order("track_number", { ascending: false })
+      .limit(1)
+      .single();
 
-    const trackNumber = (count || 0) + 1
+    const trackNumber = lastTrack ? lastTrack.track_number + 1 : 1;
 
-    // Insert track
-    const { data: track, error: trackError } = await supabase
-      .from('tracks')
+    // Insert track with duration
+    const { data: track, error: insertError } = await supabase
+      .from("tracks")
       .insert({
         album_id: id,
         title,
-        artist: artist || album.artist,
-        track_number: trackNumber,
+        artist,
         playback_url: playbackUrl,
-        audio_url: playbackUrl,
-        source: 'ia',
+        track_number: trackNumber,
         processing: true,
-        duration: '0:00',
+        duration: duration || null, // Save duration if provided
       })
       .select()
-      .single()
+      .single();
 
-    if (trackError) {
-      console.error('Error creating track:', trackError)
-      return NextResponse.json({ error: 'Failed to create track' }, { status: 500 })
+    if (insertError) {
+      console.error("Error creating track:", insertError);
+      return NextResponse.json(
+        { error: "Failed to create track" },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       track: {
         id: track.id,
         title: track.title,
@@ -68,10 +75,14 @@ export async function POST(
         trackNumber: track.track_number,
         playbackUrl: track.playback_url,
         processing: track.processing,
-      }
-    })
+        duration: track.duration,
+      },
+    });
   } catch (error) {
-    console.error('Error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error("Error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

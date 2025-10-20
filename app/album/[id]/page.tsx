@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, Music } from "lucide-react";
+import { ArrowLeft, Music, Clock } from "lucide-react";
 import { getAlbumById } from "@/lib/data";
 import { UploadTrackToAlbum } from "@/components/upload-track-to-album";
 import { DeleteAlbum } from "@/components/delete-album";
@@ -12,8 +12,7 @@ import { EditAlbum } from "@/components/edit-album";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import Image from "next/image";
-import { ThemeToggle } from "@/components/theme-toggle";
-
+import { TrackDurationFetcher } from "@/components/track-duration-fetcher";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -21,6 +20,19 @@ interface PageProps {
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+// Helper functions for duration formatting
+function formatTotalDuration(seconds: number): string {
+  if (!seconds || seconds === 0) return "";
+
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+
+  if (hours > 0) {
+    return `${hours} hr ${mins} min`;
+  }
+  return `${mins} min`;
+}
 
 // Add metadata for better SEO and performance
 export async function generateMetadata({ params }: PageProps) {
@@ -48,10 +60,10 @@ function AlbumSkeleton() {
         <div className="container mx-auto px-4 py-6">
           <Skeleton className="h-9 w-32 mb-4" />
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
-            <Skeleton className="h-48 w-48 rounded-xl" />
+            <Skeleton className="h-48 w-48 rounded-xl mx-auto md:mx-0" />
             <div className="flex-1 space-y-4">
-              <Skeleton className="h-10 w-3/4" />
-              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-10 w-3/4 mx-auto md:mx-0" />
+              <Skeleton className="h-6 w-1/2 mx-auto md:mx-0" />
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-2/3" />
             </div>
@@ -77,12 +89,27 @@ async function AlbumContent({ id }: { id: string }) {
     notFound();
   }
 
+  // Debug: Log what durations we're getting
+  console.log('Album tracks durations:', album.tracks.map(t => ({
+    title: t.title,
+    duration: t.duration,
+    type: typeof t.duration
+  })));
+
+  // Calculate total duration
+  const totalDuration = album.tracks.reduce((sum, track) => {
+    return sum + (typeof track.duration === "number" ? track.duration : 0);
+  }, 0);
+
+  const totalDurationText = formatTotalDuration(totalDuration);
+
   return (
     <div className="min-h-screen bg-background">
-      <TrackStatusChecker tracks={album.tracks} />
+      <TrackStatusChecker tracks={album.tracks} albumId={id} />
+      <TrackDurationFetcher tracks={album.tracks} albumId={id} />
 
-      {/* Enhanced header with dark theme */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      {/* Enhanced header - scrolls naturally on all devices */}
+      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6">
           <Link href="/" prefetch={true}>
             <Button
@@ -97,7 +124,7 @@ async function AlbumContent({ id }: { id: string }) {
 
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
             {/* Album cover with enhanced styling */}
-            <div className="relative group">
+            <div className="relative group mx-auto md:mx-0">
               <div className="h-48 w-48 overflow-hidden rounded-xl bg-secondary/30 shadow-lg ring-1 ring-border/50">
                 <Image
                   src={album.coverUrl || "/placeholder.svg"}
@@ -115,8 +142,8 @@ async function AlbumContent({ id }: { id: string }) {
 
             {/* Album info with gradient text */}
             <div className="flex-1">
-              <div className="flex justify-between items-start gap-4 flex-wrap">
-                <div className="flex-1 min-w-0">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                <div className="flex-1 min-w-0 text-center md:text-left">
                   <h1 className="font-sans text-4xl font-bold text-balance bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
                     {album.title}
                   </h1>
@@ -124,7 +151,7 @@ async function AlbumContent({ id }: { id: string }) {
                     {album.artist}
                   </p>
                   {album.description && (
-                    <p className="mt-4 text-base text-muted-foreground/90 text-pretty max-w-2xl">
+                    <p className="mt-4 text-base text-muted-foreground/90 text-pretty max-w-2xl mx-auto md:mx-0">
                       {album.description}
                     </p>
                   )}
@@ -139,17 +166,25 @@ async function AlbumContent({ id }: { id: string }) {
                       })()}
                     </p>
                   )}
-                  <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                    <Music className="h-4 w-4" />
-                    <span>
-                      {album.tracks.length}{" "}
-                      {album.tracks.length === 1 ? "track" : "tracks"}
-                    </span>
+                  <div className="mt-4 flex items-center justify-center md:justify-start gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Music className="h-4 w-4" />
+                      <span>
+                        {album.tracks.length}{" "}
+                        {album.tracks.length === 1 ? "track" : "tracks"}
+                      </span>
+                    </div>
+                    {totalDurationText && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        <span>{totalDurationText}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Action buttons with Edit */}
-                <div className="flex gap-2 flex-shrink-0">
+                {/* Action buttons - centered on mobile, right on desktop */}
+                <div className="flex gap-2 flex-shrink-0 justify-center md:justify-end">
                   <EditAlbum
                     albumId={id}
                     currentTitle={album.title}
@@ -167,7 +202,7 @@ async function AlbumContent({ id }: { id: string }) {
       </header>
 
       {/* Main content area */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pb-24">
         {album.tracks.length === 0 ? (
           <div className="flex min-h-[300px] items-center justify-center">
             <div className="text-center space-y-4">

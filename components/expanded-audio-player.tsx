@@ -36,10 +36,12 @@ export function ExpandedAudioPlayer({
     seek,
     hasNext,
     hasPrevious,
+    volume,
+    setVolume,
+    isMuted,
+    toggleMute,
   } = useAudio();
 
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 
   const formatTime = (time: number) => {
@@ -181,10 +183,10 @@ export function ExpandedAudioPlayer({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setIsMuted(!isMuted)}
+            onClick={toggleMute}
             className="hover:bg-secondary/50 hover:text-primary transition-all"
           >
-            {isMuted ? (
+            {isMuted || volume === 0 ? (
               <VolumeX className="h-5 w-5" />
             ) : (
               <Volume2 className="h-5 w-5" />
@@ -192,13 +194,10 @@ export function ExpandedAudioPlayer({
           </Button>
           <div className="flex-1 relative">
             <Slider
-              value={[isMuted ? 0 : volume]}
+              value={[volume]}
               max={1}
               step={0.01}
-              onValueChange={(value) => {
-                setVolume(value[0]);
-                setIsMuted(value[0] === 0);
-              }}
+              onValueChange={(value) => setVolume(value[0])}
               className="flex-1"
             />
             {/* Volume gradient indicator */}
@@ -206,7 +205,7 @@ export function ExpandedAudioPlayer({
               <div className="h-1 w-full bg-secondary/30 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-muted-foreground to-primary transition-all duration-100"
-                  style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
+                  style={{ width: `${volume * 100}%` }}
                 />
               </div>
             </div>

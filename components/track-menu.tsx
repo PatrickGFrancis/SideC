@@ -1,17 +1,16 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { MoreVertical, ExternalLink, Trash2, Download } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { MoreVertical, ExternalLink, Trash2, Download } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +20,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TrackMenuProps {
   albumId: string;
@@ -30,76 +30,77 @@ interface TrackMenuProps {
   playbackUrl?: string;
 }
 
-export function TrackMenu({ albumId, trackId, trackTitle, playbackUrl }: TrackMenuProps) {
+export function TrackMenu({
+  albumId,
+  trackId,
+  trackTitle,
+  playbackUrl,
+}: TrackMenuProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteFromIA, setDeleteFromIA] = useState(false);
   const router = useRouter();
-  const { toast } = useToast();
 
   const handleDelete = async () => {
     setDeleting(true);
 
     try {
       const response = await fetch(`/api/albums/${albumId}/tracks/${trackId}`, {
-        method: 'DELETE',
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteFromIA }),
       });
 
       if (response.ok) {
-        toast({
-          title: 'Track deleted',
-          description: `"${trackTitle}" has been removed.`,
-        });
-        router.refresh();
+        // Close dialog immediately
+        setShowDeleteDialog(false);
+
+        // Hard reload - most reliable
+        window.location.reload();
       } else {
-        throw new Error('Failed to delete track');
+        throw new Error("Failed to delete track");
       }
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete track. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
+      console.error("Delete failed:", error);
       setDeleting(false);
-      setShowDeleteDialog(false);
     }
   };
 
   const handleDownload = async () => {
-    if (!playbackUrl) {
-      toast({
-        title: 'Error',
-        description: 'Download URL not available',
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (!playbackUrl) return;
 
     try {
-      // Fetch the audio file
       const response = await fetch(playbackUrl);
       const blob = await response.blob();
-      
-      // Create download link
+
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `${trackTitle}.mp3`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
-      toast({
-        title: 'Download started',
-        description: `Downloading "${trackTitle}"`,
-      });
     } catch (error) {
-      toast({
-        title: 'Download failed',
-        description: 'Could not download track. Please try again.',
-        variant: 'destructive',
-      });
+      console.error("Download failed:", error);
+    }
+  };
+
+  const handleViewIA = () => {
+    if (!playbackUrl) return;
+
+    // Try to extract identifier from either format:
+    // https://s3.us.archive.org/music-123456-abc/file.mp3
+    // https://archive.org/download/music-123456-abc/file.mp3
+    const s3Match = playbackUrl.match(/s3\.us\.archive\.org\/([^/]+)/);
+    const downloadMatch = playbackUrl.match(/\/download\/([^/]+)\//);
+
+    const identifier = s3Match?.[1] || downloadMatch?.[1];
+
+    if (identifier) {
+      window.open(`https://archive.org/details/${identifier}`, "_blank");
+    } else {
+      window.open(playbackUrl, "_blank");
     }
   };
 
@@ -111,7 +112,10 @@ export function TrackMenu({ albumId, trackId, trackTitle, playbackUrl }: TrackMe
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-card/95 backdrop-blur-md border-border/50">
+        <DropdownMenuContent
+          align="end"
+          className="bg-card/95 backdrop-blur-md border-border/50"
+        >
           <DropdownMenuItem
             onClick={handleDownload}
             className="cursor-pointer focus:bg-secondary/50"
@@ -121,7 +125,7 @@ export function TrackMenu({ albumId, trackId, trackTitle, playbackUrl }: TrackMe
           </DropdownMenuItem>
           {playbackUrl && (
             <DropdownMenuItem
-              onClick={() => window.open(playbackUrl, '_blank')}
+              onClick={handleViewIA}
               className="cursor-pointer focus:bg-secondary/50"
             >
               <ExternalLink className="mr-2 h-4 w-4" />
@@ -144,9 +148,27 @@ export function TrackMenu({ albumId, trackId, trackTitle, playbackUrl }: TrackMe
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Track?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{trackTitle}"? This action cannot be undone.
+              Are you sure you want to delete "{trackTitle}"? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {playbackUrl && (
+            <div className="flex items-center space-x-2 py-4">
+              <Checkbox
+                id="delete-ia"
+                checked={deleteFromIA}
+                onCheckedChange={(checked) => setDeleteFromIA(checked === true)}
+              />
+              <label
+                htmlFor="delete-ia"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Also delete from Internet Archive
+              </label>
+            </div>
+          )}
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -154,7 +176,7 @@ export function TrackMenu({ albumId, trackId, trackTitle, playbackUrl }: TrackMe
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? 'Deleting...' : 'Delete'}
+              {deleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

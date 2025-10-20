@@ -18,6 +18,7 @@ interface Track {
   albumTitle?: string;
   albumId?: string;
   coverUrl?: string;
+  processing?: boolean;
 }
 
 type RepeatMode = "off" | "all" | "one";
@@ -41,6 +42,10 @@ interface AudioContextType {
   toggleShuffle: () => void;
   repeatMode: RepeatMode;
   setRepeatMode: (mode: RepeatMode) => void;
+  volume: number;
+  setVolume: (volume: number) => void;
+  isMuted: boolean;
+  toggleMute: () => void;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
@@ -55,15 +60,19 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [shuffle, setShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("off");
+  const [volume, setVolumeState] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const preloadAudioRef = useRef<HTMLAudioElement | null>(null);
   const preloadedTrackId = useRef<string | null>(null);
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const previousVolumeRef = useRef(1);
 
   useEffect(() => {
     const audio = new Audio();
     audio.preload = "auto";
     audio.crossOrigin = "anonymous";
+    audio.volume = volume;
     audioRef.current = audio;
 
     const preloadAudio = new Audio();
@@ -87,7 +96,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       audio.removeEventListener("canplay", handleCanPlay);
       audio.pause();
       preloadAudio.pause();
-      
+
       // Clear pending play operations
       if (playTimeoutRef.current) {
         clearTimeout(playTimeoutRef.current);
@@ -104,6 +113,37 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
     return shuffled;
   };
+
+  // Volume control
+  const setVolume = useCallback((newVolume: number) => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.volume = newVolume;
+      setVolumeState(newVolume);
+      if (newVolume > 0) {
+        setIsMuted(false);
+        previousVolumeRef.current = newVolume;
+      }
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (isMuted) {
+      // Unmute - restore previous volume
+      audio.volume = previousVolumeRef.current;
+      setVolumeState(previousVolumeRef.current);
+      setIsMuted(false);
+    } else {
+      // Mute - save current volume and set to 0
+      previousVolumeRef.current = volume;
+      audio.volume = 0;
+      setVolumeState(0);
+      setIsMuted(true);
+    }
+  }, [isMuted, volume]);
 
   // Toggle shuffle - simplified to avoid errors
   const toggleShuffle = useCallback(() => {
@@ -201,7 +241,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       if (!audio) return;
 
       const audioUrl = track.playbackUrl || track.audio_url;
-      if (!audioUrl) return;
+      if (!audioUrl) {
+        console.error("No audio URL for track:", track.title);
+        return;
+      }
 
       // Clear any pending play operations
       if (playTimeoutRef.current) {
@@ -223,7 +266,16 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           setIsPlaying(true);
         } catch (error: any) {
           if (error.name !== "AbortError") {
-            console.error("Play error:", error);
+            console.error("Play error (resume):", error);
+            console.error("Error details:", {
+              name: error?.name,
+              message: error?.message,
+              type: error?.type,
+              currentSrc: audio?.src,
+              networkState: audio?.networkState,
+              readyState: audio?.readyState,
+              audioError: audio?.error,
+            });
           }
         }
         return;
@@ -275,8 +327,24 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           setIsPlaying(true);
         } catch (error: any) {
           // Ignore abort and pause interruption errors
-          if (error.name !== "AbortError" && !error.message?.includes("pause")) {
-            console.error("Play error:", error);
+          if (
+            error.name !== "AbortError" &&
+            !error.message?.includes("pause")
+          ) {
+            console.error("Play error (new track):", error);
+            console.error("Error details:", {
+              track: track.title,
+              url: audioUrl,
+              name: error?.name,
+              message: error?.message,
+              type: error?.type,
+              currentSrc: audio?.src,
+              networkState: audio?.networkState,
+              readyState: audio?.readyState,
+              audioError: audio?.error,
+              errorCode: audio?.error?.code,
+              errorMessage: audio?.error?.message,
+            });
           }
           setIsPlaying(false);
         }
@@ -311,14 +379,27 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (currentIndex < playlist.length - 1) {
-      const nextTrack = playlist[currentIndex + 1];
-      setCurrentIndex(currentIndex + 1);
-      play(nextTrack);
-    } else if (repeatMode === "all" && playlist.length > 0) {
-      const firstTrack = playlist[0];
-      setCurrentIndex(0);
-      play(firstTrack);
+    // Find next non-processing track
+    let nextIndex = currentIndex + 1;
+    while (nextIndex < playlist.length) {
+      const nextTrack = playlist[nextIndex];
+      if (!nextTrack.processing) {
+        setCurrentIndex(nextIndex);
+        play(nextTrack);
+        return;
+      }
+      nextIndex++;
+    }
+
+    // No more playable tracks, check for repeat all
+    if (repeatMode === "all" && playlist.length > 0) {
+      // Find first non-processing track from beginning
+      const firstPlayableTrack = playlist.find((t) => !t.processing);
+      if (firstPlayableTrack) {
+        const index = playlist.findIndex((t) => t.id === firstPlayableTrack.id);
+        setCurrentIndex(index);
+        play(firstPlayableTrack);
+      }
     }
   }, [currentIndex, playlist, play, repeatMode]);
 
@@ -341,14 +422,28 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (currentIndex > 0) {
-      const prevTrack = playlist[currentIndex - 1];
-      setCurrentIndex(currentIndex - 1);
-      play(prevTrack);
-    } else if (repeatMode === "all" && playlist.length > 0) {
-      const lastTrack = playlist[playlist.length - 1];
-      setCurrentIndex(playlist.length - 1);
-      play(lastTrack);
+    // Find previous non-processing track
+    let prevIndex = currentIndex - 1;
+    while (prevIndex >= 0) {
+      const prevTrack = playlist[prevIndex];
+      if (!prevTrack.processing) {
+        setCurrentIndex(prevIndex);
+        play(prevTrack);
+        return;
+      }
+      prevIndex--;
+    }
+
+    // No previous playable tracks, check for repeat all
+    if (repeatMode === "all" && playlist.length > 0) {
+      // Find last non-processing track
+      for (let i = playlist.length - 1; i >= 0; i--) {
+        if (!playlist[i].processing) {
+          setCurrentIndex(i);
+          play(playlist[i]);
+          return;
+        }
+      }
     }
   }, [currentIndex, playlist, play, repeatMode]);
 
@@ -404,6 +499,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         toggleShuffle,
         repeatMode,
         setRepeatMode,
+        volume,
+        setVolume,
+        isMuted,
+        toggleMute,
       }}
     >
       {children}
