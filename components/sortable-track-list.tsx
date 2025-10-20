@@ -20,6 +20,7 @@ import {
 import { SortableTrackItem } from '@/components/sortable-track-item';
 import { useToast } from '@/hooks/use-toast';
 import { useAudio } from '@/contexts/audio-context';
+import { useOptimisticTracks } from '@/contexts/optimistic-tracks-context';
 
 interface Track {
   id: string;
@@ -29,6 +30,10 @@ interface Track {
   playbackUrl?: string;
   audio_url?: string;
   albumId?: string;
+  duration?: number | string;
+  processing?: boolean;
+  isUploading?: boolean;
+  uploadProgress?: number;
 }
 
 interface SortableTrackListProps {
@@ -47,11 +52,22 @@ export function SortableTrackList({
   onPlay,
 }: SortableTrackListProps) {
   const [tracks, setTracks] = useState(initialTracks);
+  const { optimisticTracks } = useOptimisticTracks();
+  const [deletingTrackId, setDeletingTrackId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const { updatePlaylist, currentTrack } = useAudio();
+
+  // Merge server tracks with optimistic tracks for this album
+  const albumOptimisticTracks = optimisticTracks.filter(t => t.albumId === albumId);
+  const allTracks = [...tracks, ...albumOptimisticTracks];
+
+  // Update tracks when initialTracks changes
+  useEffect(() => {
+    setTracks(initialTracks);
+  }, [initialTracks]);
 
   // Only render drag-and-drop on client to avoid hydration mismatch
   useEffect(() => {
@@ -69,6 +85,31 @@ export function SortableTrackList({
     })
   );
 
+  const handleTrackDelete = (trackId: string) => {
+    setDeletingTrackId(trackId);
+    
+    setTimeout(() => {
+      setTracks(prev => prev.filter(t => t.id !== trackId));
+      setDeletingTrackId(null);
+      
+      if (currentTrack?.albumId === albumId) {
+        const newTracks = tracks.filter(t => t.id !== trackId);
+        updatePlaylist(
+          newTracks.map((track) => ({
+            ...track,
+            albumTitle,
+            albumId,
+            coverUrl,
+          }))
+        );
+      }
+      
+      setTimeout(() => {
+        router.refresh();
+      }, 100);
+    }, 300);
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -76,12 +117,12 @@ export function SortableTrackList({
       return;
     }
 
-    const oldIndex = tracks.findIndex((t) => t.id === active.id);
-    const newIndex = tracks.findIndex((t) => t.id === over.id);
+    const oldIndex = allTracks.findIndex((t) => t.id === active.id);
+    const newIndex = allTracks.findIndex((t) => t.id === over.id);
 
-    const newTracks = arrayMove(tracks, oldIndex, newIndex);
+    const newTracks = arrayMove(allTracks, oldIndex, newIndex);
     
-    setTracks(newTracks);
+    setTracks(newTracks.filter(t => !t.isUploading));
 
     if (currentTrack?.albumId === albumId) {
       updatePlaylist(
@@ -96,10 +137,12 @@ export function SortableTrackList({
 
     setIsSaving(true);
     try {
-      const trackOrders = newTracks.map((track, index) => ({
-        id: track.id,
-        order: index,
-      }));
+      const trackOrders = newTracks
+        .filter(t => !t.isUploading)
+        .map((track, index) => ({
+          id: track.id,
+          order: index,
+        }));
 
       const response = await fetch(`/api/albums/${albumId}/tracks/reorder`, {
         method: 'PATCH',
@@ -137,11 +180,10 @@ export function SortableTrackList({
     }
   };
 
-  // Render without drag-and-drop until mounted
   if (!isMounted) {
     return (
       <div className="space-y-2">
-        {tracks.map((track, index) => (
+        {allTracks.map((track, index) => (
           <SortableTrackItem
             key={track.id}
             track={track}
@@ -149,8 +191,10 @@ export function SortableTrackList({
             albumId={albumId}
             albumTitle={albumTitle}
             coverUrl={coverUrl}
-            onPlay={() => onPlay(track, tracks)}
+            onPlay={() => onPlay(track, allTracks)}
             disabled={true}
+            isDeleting={false}
+            onDelete={handleTrackDelete}
           />
         ))}
       </div>
@@ -163,9 +207,9 @@ export function SortableTrackList({
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext items={tracks} strategy={verticalListSortingStrategy}>
+      <SortableContext items={allTracks} strategy={verticalListSortingStrategy}>
         <div className="space-y-2">
-          {tracks.map((track, index) => (
+          {allTracks.map((track, index) => (
             <SortableTrackItem
               key={track.id}
               track={track}
@@ -173,8 +217,10 @@ export function SortableTrackList({
               albumId={albumId}
               albumTitle={albumTitle}
               coverUrl={coverUrl}
-              onPlay={() => onPlay(track, tracks)}
-              disabled={isSaving}
+              onPlay={() => onPlay(track, allTracks)}
+              disabled={isSaving || track.isUploading}
+              isDeleting={deletingTrackId === track.id}
+              onDelete={handleTrackDelete}
             />
           ))}
         </div>

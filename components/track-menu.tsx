@@ -28,6 +28,7 @@ interface TrackMenuProps {
   trackId: string;
   trackTitle: string;
   playbackUrl?: string;
+  onDeleteStart?: () => void;
 }
 
 export function TrackMenu({
@@ -35,6 +36,7 @@ export function TrackMenu({
   trackId,
   trackTitle,
   playbackUrl,
+  onDeleteStart,
 }: TrackMenuProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -45,24 +47,31 @@ export function TrackMenu({
     setDeleting(true);
 
     try {
+      // Start the delete animation immediately
+      if (onDeleteStart) {
+        onDeleteStart();
+      }
+
+      // Close dialog
+      setShowDeleteDialog(false);
+
+      // Perform the actual delete in the background
       const response = await fetch(`/api/albums/${albumId}/tracks/${trackId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deleteFromIA }),
       });
 
-      if (response.ok) {
-        // Close dialog immediately
-        setShowDeleteDialog(false);
-
-        // Hard reload - most reliable
-        window.location.reload();
-      } else {
+      if (!response.ok) {
         throw new Error("Failed to delete track");
       }
+
+      // Don't need to reload - animation handler does it
     } catch (error) {
       console.error("Delete failed:", error);
       setDeleting(false);
+      // If delete fails, reload to restore proper state
+      window.location.reload();
     }
   };
 

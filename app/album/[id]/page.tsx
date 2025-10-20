@@ -13,6 +13,7 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import Image from "next/image";
 import { TrackDurationFetcher } from "@/components/track-duration-fetcher";
+import { AlbumPageClient } from "@/components/album-page-client";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -90,11 +91,14 @@ async function AlbumContent({ id }: { id: string }) {
   }
 
   // Debug: Log what durations we're getting
-  console.log('Album tracks durations:', album.tracks.map(t => ({
-    title: t.title,
-    duration: t.duration,
-    type: typeof t.duration
-  })));
+  console.log(
+    "Album tracks durations:",
+    album.tracks.map((t) => ({
+      title: t.title,
+      duration: t.duration,
+      type: typeof t.duration,
+    }))
+  );
 
   // Calculate total duration
   const totalDuration = album.tracks.reduce((sum, track) => {
@@ -237,8 +241,10 @@ export default async function AlbumPage({ params }: PageProps) {
   const { id } = await params;
 
   return (
-    <Suspense fallback={<AlbumSkeleton />}>
-      <AlbumContent id={id} />
-    </Suspense>
+    <AlbumPageClient albumId={id}>
+      <Suspense fallback={<AlbumSkeleton />}>
+        <AlbumContent id={id} />
+      </Suspense>
+    </AlbumPageClient>
   );
 }

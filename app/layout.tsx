@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AudioProvider } from "@/contexts/audio-context";
+import { OptimisticTracksProvider } from "@/contexts/optimistic-tracks-context";
 import { GlobalAudioPlayer } from "@/components/global-audio-player";
 
 export const metadata: Metadata = {
@@ -43,9 +44,11 @@ export default function RootLayout({
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <AudioProvider>
-          {children}
-          <GlobalAudioPlayer />
-          <Toaster />
+          <OptimisticTracksProvider>
+            {children}
+            <GlobalAudioPlayer />
+            <Toaster />
+          </OptimisticTracksProvider>
         </AudioProvider>
         <Analytics />
       </body>

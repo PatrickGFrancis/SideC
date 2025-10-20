@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useOptimisticTracks } from "@/contexts/optimistic-tracks-context";
 
 interface UploadTrackToAlbumProps {
   albumId: string;
@@ -28,7 +29,9 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
   const [artist, setArtist] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStage, setUploadStage] = useState<"preparing" | "uploading" | "processing" | "saving" | "complete">("preparing");
+  const [uploadStage, setUploadStage] = useState<
+    "preparing" | "uploading" | "processing" | "saving" | "complete"
+  >("preparing");
   const [isIAConnected, setIsIAConnected] = useState(false);
   const [iaCredentials, setIaCredentials] = useState<{
     username: string;
@@ -36,6 +39,8 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
   } | null>(null);
   const { toast } = useToast();
   const router = useRouter();
+  const { addOptimisticTrack, updateOptimisticTrack, removeOptimisticTrack } =
+    useOptimisticTracks();
 
   useEffect(() => {
     // Check if user has IA credentials
@@ -88,9 +93,35 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
   const handleUpload = async () => {
     if (!file || !isIAConnected || !iaCredentials) return;
 
+    // Close dialog immediately
+    setOpen(false);
+
     setUploading(true);
     setUploadProgress(0);
     setUploadStage("preparing");
+
+    // Generate temporary ID for optimistic track
+    const optimisticTrackId = `temp-${Date.now()}`;
+
+    // Add optimistic track immediately with setTimeout to avoid render conflict
+    setTimeout(() => {
+      addOptimisticTrack({
+        id: optimisticTrackId,
+        title: title || file.name,
+        artist: artist || "Unknown Artist",
+        order: 999,
+        albumId: albumId,
+        isUploading: true,
+        uploadProgress: 0,
+      });
+    }, 0);
+
+    const updateProgress = (progress: number) => {
+      setUploadProgress(progress);
+      setTimeout(() => {
+        updateOptimisticTrack(optimisticTrackId, { uploadProgress: progress });
+      }, 0);
+    };
 
     const iaFormData = new FormData();
     iaFormData.append("file", file);
@@ -105,12 +136,14 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
       await new Promise((resolve) => setTimeout(resolve, 300));
       setUploadStage("uploading");
 
-      // Simulate smooth progress based on file size
+      // Simulate smooth progress
       const estimatedSeconds = Math.max(10, (file.size / 1024 / 1024) * 2);
       progressInterval = setInterval(() => {
         setUploadProgress((prev) => {
           if (prev >= 95) return prev;
-          return Math.min(prev + 2, 95);
+          const newProgress = Math.min(prev + 2, 95);
+          updateProgress(newProgress);
+          return newProgress;
         });
       }, (estimatedSeconds / 50) * 1000);
 
@@ -129,38 +162,34 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
         throw new Error(iaData.error || "Upload failed");
       }
 
-      setUploadProgress(100);
+      updateProgress(100);
       await new Promise((resolve) => setTimeout(resolve, 300));
       setUploadStage("processing");
 
-      // Fetch duration from local file while IA processes
+      // Fetch duration from local file
       let fetchedDuration = 0;
       try {
         const audioForDuration = new Audio();
-        audioForDuration.preload = 'metadata';
-        
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error('Timeout'));
-          }, 10000);
+        audioForDuration.preload = "metadata";
 
-          audioForDuration.addEventListener('loadedmetadata', () => {
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("Timeout")), 10000);
+
+          audioForDuration.addEventListener("loadedmetadata", () => {
             clearTimeout(timeout);
             fetchedDuration = Math.floor(audioForDuration.duration);
-            console.log('Duration fetched during upload:', fetchedDuration);
             resolve(null);
           });
 
-          audioForDuration.addEventListener('error', () => {
+          audioForDuration.addEventListener("error", () => {
             clearTimeout(timeout);
-            reject(new Error('Failed to load audio'));
+            reject(new Error("Failed to load audio"));
           });
 
-          // Use local blob URL - no CORS issues!
           audioForDuration.src = URL.createObjectURL(file);
         });
       } catch (error) {
-        console.warn('Could not fetch duration from file:', error);
+        console.warn("Could not fetch duration from file:", error);
       }
 
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -172,7 +201,7 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
         playbackUrl: iaData.playbackUrl,
         iaDetailsUrl: iaData.iaDetailsUrl,
         fileName: file.name,
-        duration: fetchedDuration, // Include duration!
+        duration: fetchedDuration,
       };
 
       const dbResponse = await fetch(`/api/albums/${albumId}/tracks`, {
@@ -186,6 +215,11 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
       if (result.success) {
         setUploadStage("complete");
 
+        // Remove optimistic track with setTimeout
+        setTimeout(() => {
+          removeOptimisticTrack(optimisticTrackId);
+        }, 0);
+
         setFile(null);
         setTitle("");
         setArtist("");
@@ -193,8 +227,10 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
         setUploadStage("preparing");
         setOpen(false);
 
-        // Reload - duration will be there!
-        window.location.reload();
+        // Refresh to show real track
+        setTimeout(() => {
+          router.refresh();
+        }, 100);
       } else {
         throw new Error("Failed to save track");
       }
@@ -202,6 +238,12 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
       if (progressInterval) {
         clearInterval(progressInterval);
       }
+
+      // Remove optimistic track on error with setTimeout
+      setTimeout(() => {
+        removeOptimisticTrack(optimisticTrackId);
+      }, 0);
+
       console.error("Upload error:", error);
       toast({
         title: "Upload failed",
