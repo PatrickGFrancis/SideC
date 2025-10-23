@@ -258,53 +258,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
   }, [playlist, currentIndex, originalPlaylist]);
 
-  // Auto-preload next track (queue or playlist)
-  useEffect(() => {
-    let nextTrack: Track | null = null;
-
-    if (queue.length > 0) {
-      // If there's a queue, preload the first queued track
-      nextTrack = queue[0];
-    } else if (playlist.length > 0 && currentIndex < playlist.length - 1) {
-      // Otherwise preload next track in playlist
-      nextTrack = playlist[currentIndex + 1];
-    }
-
-    if (nextTrack && nextTrack.id !== preloadedTrackId.current) {
-      preload(nextTrack);
-    }
-  }, [currentIndex, playlist, queue]);
-
-  // Handle track ended
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleEnded = () => {
-      if (repeatMode === "one") {
-        audio.currentTime = 0;
-        audio.play();
-      } else if (queue.length > 0) {
-        // Play next track from queue
-        const nextTrack = queue[0];
-        setQueue((prev) => prev.slice(1)); // Remove from queue
-        play(nextTrack);
-      } else if (currentIndex < playlist.length - 1) {
-        // Play next track from playlist
-        next();
-      } else if (repeatMode === "all" && playlist.length > 0) {
-        const firstTrack = playlist[0];
-        setCurrentIndex(0);
-        play(firstTrack);
-      } else {
-        setIsPlaying(false);
-      }
-    };
-
-    audio.addEventListener("ended", handleEnded);
-    return () => audio.removeEventListener("ended", handleEnded);
-  }, [currentIndex, playlist, repeatMode, queue]);
-
   const preload = useCallback((track: Track) => {
     const preloadAudio = preloadAudioRef.current;
     if (!preloadAudio) return;
@@ -318,6 +271,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     console.log("Preloading track:", track.title);
   }, []);
 
+  // IMPORTANT: Define play BEFORE next/previous since they reference it
   const play = useCallback(
     async (track: Track, newPlaylist?: Track[]) => {
       const audio = audioRef.current;
@@ -343,6 +297,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       if (currentTrack?.id === track.id && audio.src) {
         try {
+          // Resume audio context on mobile if needed
+          const audioContext = (audio as any).context;
+          if (audioContext && audioContext.state === "suspended") {
+            await audioContext.resume();
+          }
           await audio.play();
           setIsPlaying(true);
         } catch (error: any) {
@@ -392,6 +351,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             audio.load();
           });
 
+          // CRITICAL FIX: Resume audio context on mobile before playing new track
+          const audioContext = (audio as any).context;
+          if (audioContext && audioContext.state === "suspended") {
+            await audioContext.resume();
+          }
+          
           await audio.play();
           setIsPlaying(true);
         } catch (error: any) {
@@ -417,10 +382,21 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
 
-    audio
-      .play()
-      .then(() => setIsPlaying(true))
-      .catch((error) => console.error("Resume error:", error));
+    // Resume audio context on mobile (CRITICAL FIX)
+    const audioContext = (audio as any).context;
+    if (audioContext && audioContext.state === "suspended") {
+      audioContext.resume().then(() => {
+        audio
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch((error) => console.error("Resume error:", error));
+      });
+    } else {
+      audio
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((error) => console.error("Resume error:", error));
+    }
   }, []);
 
   const next = useCallback(() => {
@@ -532,6 +508,37 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     },
     [currentTrack, shuffle]
   );
+
+  // Auto-preload next track (queue or playlist)
+  useEffect(() => {
+    let nextTrack: Track | null = null;
+
+    if (queue.length > 0) {
+      // If there's a queue, preload the first queued track
+      nextTrack = queue[0];
+    } else if (playlist.length > 0 && currentIndex < playlist.length - 1) {
+      // Otherwise preload next track in playlist
+      nextTrack = playlist[currentIndex + 1];
+    }
+
+    if (nextTrack && nextTrack.id !== preloadedTrackId.current) {
+      preload(nextTrack);
+    }
+  }, [currentIndex, playlist, queue, preload]);
+
+  // Handle track ended - NOW next is defined above!
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleEnded = () => {
+      console.log("Track ended, auto-playing next");
+      next();
+    };
+
+    audio.addEventListener("ended", handleEnded);
+    return () => audio.removeEventListener("ended", handleEnded);
+  }, [next]);
 
   const hasNext =
     repeatMode === "one" ||
