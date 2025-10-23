@@ -377,38 +377,47 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       setCurrentTrack(track);
 
-      playTimeoutRef.current = setTimeout(async () => {
-        try {
-          await new Promise<void>((resolve, reject) => {
-            const handleCanPlay = () => {
-              audio.removeEventListener("canplay", handleCanPlay);
-              audio.removeEventListener("error", handleError);
-              resolve();
-            };
-
-            const handleError = (e: Event) => {
-              audio.removeEventListener("canplay", handleCanPlay);
-              audio.removeEventListener("error", handleError);
-              reject(e);
-            };
-
-            audio.addEventListener("canplay", handleCanPlay, { once: true });
-            audio.addEventListener("error", handleError, { once: true });
-            audio.load();
-          });
-
-          await audio.play();
-          setIsPlaying(true);
-        } catch (error: any) {
-          if (
-            error.name !== "AbortError" &&
-            !error.message?.includes("pause")
-          ) {
-            console.error("Play error (new track):", error);
-          }
-          setIsPlaying(false);
+      // Load and play immediately (no timeout to preserve gesture chain on mobile)
+      try {
+        audio.load();
+        
+        // Mobile fix: Resume audio context immediately before waiting for canplay
+        const audioContext = (audio as any).context;
+        if (audioContext?.state === "suspended") {
+          await audioContext.resume().catch((err: any) => 
+            console.warn("Context resume warning:", err)
+          );
         }
-      }, 50);
+
+        // Wait for canplay
+        await new Promise<void>((resolve, reject) => {
+          const handleCanPlay = () => {
+            audio.removeEventListener("canplay", handleCanPlay);
+            audio.removeEventListener("error", handleError);
+            resolve();
+          };
+
+          const handleError = (e: Event) => {
+            audio.removeEventListener("canplay", handleCanPlay);
+            audio.removeEventListener("error", handleError);
+            reject(e);
+          };
+
+          audio.addEventListener("canplay", handleCanPlay, { once: true });
+          audio.addEventListener("error", handleError, { once: true });
+        });
+
+        await audio.play();
+        setIsPlaying(true);
+      } catch (error: any) {
+        if (
+          error.name !== "AbortError" &&
+          !error.message?.includes("pause")
+        ) {
+          console.error("Play error (new track):", error);
+        }
+        setIsPlaying(false);
+      }
     },
     [currentTrack, shuffle]
   );
