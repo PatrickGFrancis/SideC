@@ -33,14 +33,16 @@ export async function POST(request: NextRequest) {
     const { fileName, contentType, title, artist } = await request.json();
 
     // Get IA credentials from database
-    const { createServerSupabaseClient } = await import("@/lib/supabase-server");
+    const { createServerSupabaseClient } = await import(
+      "@/lib/supabase-server"
+    );
     const supabase = await createServerSupabaseClient();
 
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -91,6 +93,7 @@ export async function POST(request: NextRequest) {
     );
 
     const uploadUrl = `https://s3.us.archive.org/${bucketName}/${cleanFileName}`;
+    const playbackUrl = `https://archive.org/download/${bucketName}/${cleanFileName}`;
 
     // Return signed URL and headers for client to use
     // Note: Date is included in signature but not sent as header (browsers block it)
@@ -106,14 +109,17 @@ export async function POST(request: NextRequest) {
         "x-archive-meta-creator": sanitizedArtist,
         "x-archive-meta01-collection": "opensource_audio",
       },
-      playbackUrl: uploadUrl,
+      playbackUrl,
       iaDetailsUrl: `https://archive.org/details/${bucketName}`,
       identifier: bucketName,
     });
   } catch (error: any) {
     console.error("❌ Error generating signed URL:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to generate upload URL" },
+      {
+        success: false,
+        error: error.message || "Failed to generate upload URL",
+      },
       { status: 500 }
     );
   }
