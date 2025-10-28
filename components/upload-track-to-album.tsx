@@ -39,7 +39,12 @@ export function UploadTrackToAlbum({
   const [artist, setArtist] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  type UploadStage = "preparing" | "uploading" | "processing" | "saving" | "complete";
+  type UploadStage =
+    | "preparing"
+    | "uploading"
+    | "processing"
+    | "saving"
+    | "complete";
 
   const [uploadStage, setUploadStage] = useState<UploadStage>("preparing");
   const [isIAConnected, setIsIAConnected] = useState(false);
@@ -186,6 +191,39 @@ export function UploadTrackToAlbum({
       await new Promise((resolve) => setTimeout(resolve, 300));
       setUploadStage("processing");
 
+      // Fetch the real CDN URL from IA metadata
+      let finalPlaybackUrl = signedData.playbackUrl;
+      try {
+        // Wait a bit for IA to process
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        const metadataResponse = await fetch(
+          `https://archive.org/metadata/${signedData.identifier}`
+        );
+        const metadata = await metadataResponse.json();
+
+        // Find the uploaded file in the metadata
+        const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const fileMetadata = metadata.files?.find(
+          (f: any) => f.name === cleanFileName
+        );
+
+        if (fileMetadata?.name) {
+          // Construct the CDN URL from metadata
+          const server = metadata.server || "archive.org";
+          const dir = metadata.dir || "";
+          finalPlaybackUrl = `https://${server}${dir}/${fileMetadata.name}`;
+          console.log("✅ Got CDN URL:", finalPlaybackUrl);
+        } else {
+          console.warn("⚠️ File not found in metadata yet, using download URL");
+        }
+      } catch (error) {
+        console.warn(
+          "Could not fetch CDN URL from IA, using download URL:",
+          error
+        );
+      }
+
       // Fetch duration from local file
       let fetchedDuration = 0;
       try {
@@ -218,7 +256,7 @@ export function UploadTrackToAlbum({
       const trackData = {
         title: title || file.name,
         artist: artist || "Unknown Artist",
-        playbackUrl: signedData.playbackUrl,
+        playbackUrl: finalPlaybackUrl, // ✅ Use the CDN URL!
         iaDetailsUrl: signedData.iaDetailsUrl,
         fileName: file.name,
         duration: fetchedDuration,
