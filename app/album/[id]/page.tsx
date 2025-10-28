@@ -71,7 +71,7 @@ function AlbumSkeleton() {
           </div>
         </div>
       </header>
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 mb-32">
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
@@ -206,7 +206,7 @@ async function AlbumContent({ id }: { id: string }) {
       </header>
 
       {/* Main content area */}
-      <main className="container mx-auto px-4 py-8 pb-24">
+      <main className="container mx-auto px-4 py-8 pb-player-safe mb-32">
         {album.tracks.length === 0 ? (
           <div className="flex min-h-[300px] items-center justify-center">
             <div className="text-center space-y-4">

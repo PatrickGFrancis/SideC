@@ -70,7 +70,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pb-player-safe mb-32">
         <Suspense fallback={<AlbumsSkeleton />}>
           <AlbumsList />
         </Suspense>

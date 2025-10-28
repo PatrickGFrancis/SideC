@@ -153,7 +153,7 @@ export function ExpandedAudioPlayer({
 
   const [isClosing, setIsClosing] = useState(false);
   const [activeTab, setActiveTab] = useState<"player" | "queue">("player");
-  
+
   // Swipe to close state
   const [dragStartY, setDragStartY] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
@@ -174,7 +174,7 @@ export function ExpandedAudioPlayer({
   const handleTouchStart = (e: React.TouchEvent) => {
     // Only handle swipe from the top area (not during scrolling)
     if (activeTab === "queue") return; // Don't interfere with queue scrolling
-    
+
     const touch = e.touches[0];
     setDragStartY(touch.clientY);
   };
@@ -188,7 +188,7 @@ export function ExpandedAudioPlayer({
     // Only allow dragging down
     if (diff > 0) {
       setDragOffset(diff);
-      
+
       // Add resistance for smoother feel
       if (containerRef.current) {
         const resistance = Math.min(diff / 3, 200);
@@ -206,7 +206,7 @@ export function ExpandedAudioPlayer({
     } else {
       // Snap back
       if (containerRef.current) {
-        containerRef.current.style.transform = 'translateY(0)';
+        containerRef.current.style.transform = "translateY(0)";
       }
     }
 
@@ -253,7 +253,7 @@ export function ExpandedAudioPlayer({
           : "animate-in slide-in-from-bottom"
       }`}
       style={{
-        transition: dragStartY !== null ? 'none' : 'transform 300ms ease-out',
+        transition: dragStartY !== null ? "none" : "transform 300ms ease-out",
       }}
     >
       {/* Swipe indicator */}
@@ -318,9 +318,8 @@ export function ExpandedAudioPlayer({
       {/* Tab Content */}
       {activeTab === "player" ? (
         /* Now Playing View */
-        <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 max-w-2xl mx-auto w-full overflow-y-auto">
-          {/* Album Art */}
-          <div className="relative w-full max-w-md mx-auto mb-8 rounded-2xl overflow-hidden shadow-2xl group">
+        <div className="flex-1 flex flex-col items-center justify-start px-8 pt-8 pb-12 max-w-2xl mx-auto w-full overflow-y-auto">
+          <div className="relative w-full max-w-xs mx-auto mb-8 rounded-2xl overflow-hidden shadow-2xl group">
             <div className="aspect-square w-full">
               <img
                 src={currentTrack.coverUrl || "/placeholder.svg"}

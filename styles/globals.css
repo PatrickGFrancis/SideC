@@ -118,9 +118,24 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    overscroll-behavior: none; /* Prevent iOS bounce */
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation; /* Improves tap responsiveness */
+  }
+  
+  /* Safe area padding for bottom player */
+  .pb-player-safe {
+    padding-bottom: calc(10rem + env(safe-area-inset-bottom));
+  }
+  
+  /* Improve button tap on mobile */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 }
 
@@ -131,12 +146,6 @@
 
 .safe-top {
   padding-top: env(safe-area-inset-top);
-}
-
-/* Prevent iOS bounce scroll */
-body {
-  overscroll-behavior: none;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* Better touch targets for mobile */

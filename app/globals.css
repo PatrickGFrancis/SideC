@@ -115,6 +115,8 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    overscroll-behavior: none; /* Prevent iOS bounce */
+    -webkit-overflow-scrolling: touch;
   }
   
   /* Safe area padding for bottom player */

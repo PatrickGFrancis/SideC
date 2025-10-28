@@ -10,7 +10,14 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, ExternalLink, Trash2, Download, ListPlus, PlayCircle } from "lucide-react";
+import {
+  MoreVertical,
+  ExternalLink,
+  Trash2,
+  Download,
+  ListPlus,
+  PlayCircle,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +58,7 @@ export function TrackMenu({
 
   const handleAddToQueue = () => {
     if (!track) return;
-    
+
     // Don't add if it's the current track
     if (currentTrack?.id === track.id) {
       toast({
@@ -61,7 +68,12 @@ export function TrackMenu({
       return;
     }
 
-    addToQueue(track);
+    // Ensure track has all necessary properties including coverUrl
+    addToQueue({
+      ...track,
+      coverUrl: track.coverUrl, // Make sure coverUrl is passed
+    });
+
     toast({
       title: "Added to queue",
       description: `"${trackTitle}" has been added to the queue.`,

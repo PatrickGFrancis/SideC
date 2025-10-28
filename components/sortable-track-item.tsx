@@ -249,7 +249,12 @@ export function SortableTrackItem({
                 trackTitle={track.title}
                 playbackUrl={track.playbackUrl || track.audio_url}
                 onDeleteStart={() => onDelete?.(track.id)}
-                track={track}
+                track={{
+                  ...track,
+                  albumTitle,
+                  albumId,
+                  coverUrl,
+                }}
               />
             </div>
           )}
