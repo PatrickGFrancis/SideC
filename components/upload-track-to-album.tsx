@@ -20,10 +20,21 @@ import { useOptimisticTracks } from "@/contexts/optimistic-tracks-context";
 
 interface UploadTrackToAlbumProps {
   albumId: string;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
-  const [open, setOpen] = useState(false);
+export function UploadTrackToAlbum({
+  albumId,
+  isOpen: controlledOpen,
+  onOpenChange,
+}: UploadTrackToAlbumProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
+
+  // ... rest of the component stays the same
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
@@ -281,7 +292,7 @@ export function UploadTrackToAlbum({ albumId }: UploadTrackToAlbumProps) {
             <Input
               id="audio-file"
               type="file"
-              accept="audio/*"
+              accept="audio/*,.mp3,.m4a,.wav,.ogg"
               onChange={handleFileChange}
               disabled={uploading || !isIAConnected}
               className="cursor-pointer file:cursor-pointer"
