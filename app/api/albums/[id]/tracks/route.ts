@@ -43,6 +43,14 @@ export async function POST(
 
     const trackNumber = lastTrack ? lastTrack.track_number + 1 : 1;
 
+    // Convert duration from seconds to "M:SS" format
+    const formatDuration = (seconds: number | null) => {
+      if (!seconds) return null;
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     // Insert track with duration
     const { data: track, error: insertError } = await supabase
       .from("tracks")
@@ -53,7 +61,7 @@ export async function POST(
         playback_url: playbackUrl,
         track_number: trackNumber,
         processing: true,
-        duration: duration || null, // Save duration if provided
+        duration: formatDuration(duration), // Convert to "M:SS" format
       })
       .select()
       .single();
