@@ -34,7 +34,6 @@ export function UploadTrackToAlbum({
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = onOpenChange || setInternalOpen;
 
-  // ... rest of the component stays the same
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
@@ -54,7 +53,6 @@ export function UploadTrackToAlbum({
     useOptimisticTracks();
 
   useEffect(() => {
-    // Check if user has IA credentials
     const checkCredentials = async () => {
       try {
         const response = await fetch("/api/ia-credentials");
@@ -78,7 +76,6 @@ export function UploadTrackToAlbum({
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      // Auto-fill title from filename
       const nameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, "");
       setTitle(nameWithoutExt);
     }
@@ -104,17 +101,13 @@ export function UploadTrackToAlbum({
   const handleUpload = async () => {
     if (!file || !isIAConnected || !iaCredentials) return;
 
-    // Close dialog immediately
     setOpen(false);
-
     setUploading(true);
     setUploadProgress(0);
     setUploadStage("preparing");
 
-    // Generate temporary ID for optimistic track
     const optimisticTrackId = `temp-${Date.now()}`;
 
-    // Add optimistic track immediately with setTimeout to avoid render conflict
     setTimeout(() => {
       addOptimisticTrack({
         id: optimisticTrackId,
@@ -134,44 +127,59 @@ export function UploadTrackToAlbum({
       }, 0);
     };
 
-    const iaFormData = new FormData();
-    iaFormData.append("file", file);
-    iaFormData.append("iaUsername", iaCredentials.username);
-    iaFormData.append("iaPassword", iaCredentials.password);
-    iaFormData.append("title", title || file.name);
-    iaFormData.append("artist", artist || "Unknown Artist");
-
-    let progressInterval: NodeJS.Timeout | null = null;
-
     try {
       await new Promise((resolve) => setTimeout(resolve, 300));
       setUploadStage("uploading");
 
-      // Simulate smooth progress
-      const estimatedSeconds = Math.max(10, (file.size / 1024 / 1024) * 2);
-      progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 95) return prev;
-          const newProgress = Math.min(prev + 2, 95);
-          updateProgress(newProgress);
-          return newProgress;
-        });
-      }, (estimatedSeconds / 50) * 1000);
-
-      const response = await fetch("/api/upload-to-ia", {
+      // Step 1: Get signed upload URL from our API (no file sent)
+      const signedUrlResponse = await fetch("/api/generate-ia-upload-url", {
         method: "POST",
-        body: iaFormData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type || "audio/mpeg",
+          title: title || file.name,
+          artist: artist || "Unknown Artist",
+        }),
       });
 
-      if (progressInterval) {
-        clearInterval(progressInterval);
+      const signedData = await signedUrlResponse.json();
+
+      if (!signedData.success) {
+        throw new Error(signedData.error || "Failed to get upload URL");
       }
 
-      const iaData = await response.json();
+      // Step 2: Upload file directly to IA using XMLHttpRequest for progress tracking
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
 
-      if (!iaData.success) {
-        throw new Error(iaData.error || "Upload failed");
-      }
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            updateProgress(Math.min(percentComplete, 95));
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          reject(new Error("Network error during upload"));
+        });
+
+        xhr.open("PUT", signedData.uploadUrl);
+        
+        Object.entries(signedData.headers).forEach(([key, value]) => {
+          xhr.setRequestHeader(key, value as string);
+        });
+
+        xhr.send(file);
+      });
 
       updateProgress(100);
       await new Promise((resolve) => setTimeout(resolve, 300));
@@ -209,8 +217,8 @@ export function UploadTrackToAlbum({
       const trackData = {
         title: title || file.name,
         artist: artist || "Unknown Artist",
-        playbackUrl: iaData.playbackUrl,
-        iaDetailsUrl: iaData.iaDetailsUrl,
+        playbackUrl: signedData.playbackUrl,
+        iaDetailsUrl: signedData.iaDetailsUrl,
         fileName: file.name,
         duration: fetchedDuration,
       };
@@ -226,7 +234,6 @@ export function UploadTrackToAlbum({
       if (result.success) {
         setUploadStage("complete");
 
-        // Remove optimistic track with setTimeout
         setTimeout(() => {
           removeOptimisticTrack(optimisticTrackId);
         }, 0);
@@ -236,9 +243,8 @@ export function UploadTrackToAlbum({
         setArtist("");
         setUploadProgress(0);
         setUploadStage("preparing");
-        setOpen(false);
+        setUploading(false);
 
-        // Refresh to show real track
         setTimeout(() => {
           router.refresh();
         }, 100);
@@ -246,11 +252,6 @@ export function UploadTrackToAlbum({
         throw new Error("Failed to save track");
       }
     } catch (error: any) {
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
-
-      // Remove optimistic track on error with setTimeout
       setTimeout(() => {
         removeOptimisticTrack(optimisticTrackId);
       }, 0);
@@ -292,7 +293,7 @@ export function UploadTrackToAlbum({
             <Input
               id="audio-file"
               type="file"
-              accept="audio/*,.mp3,.m4a,.wav,.ogg"
+              accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac"
               onChange={handleFileChange}
               disabled={uploading || !isIAConnected}
               className="cursor-pointer file:cursor-pointer"
