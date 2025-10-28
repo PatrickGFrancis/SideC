@@ -47,19 +47,20 @@ export async function POST(request: NextRequest) {
 
     const { data: credentials, error: credError } = await supabase
       .from("ia_credentials")
-      .select("access_key, secret_key")
+      .select("ia_username, ia_password")
       .eq("user_id", user.id)
       .single();
 
     if (credError || !credentials) {
+      console.error("Credentials error:", credError);
       return NextResponse.json(
         { error: "IA credentials not found" },
         { status: 400 }
       );
     }
 
-    const cleanUsername = credentials.access_key.trim();
-    const cleanPassword = credentials.secret_key.trim();
+    const cleanUsername = credentials.ia_username.trim();
+    const cleanPassword = credentials.ia_password.trim();
 
     // Sanitize for IA
     const sanitizeForIA = (str: string) =>
