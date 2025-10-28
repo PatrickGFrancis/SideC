@@ -329,16 +329,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Mobile fix: Initialize/resume audio context immediately on user tap
-      const audioContext = (audio as any).context;
-      if (audioContext?.state === "suspended") {
-        try {
-          await audioContext.resume();
-        } catch (err) {
-          console.warn("Audio context resume failed:", err);
-        }
-      }
-
       if (playTimeoutRef.current) {
         clearTimeout(playTimeoutRef.current);
       }
@@ -353,11 +343,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       if (currentTrack?.id === track.id && audio.src) {
         try {
-          // Resume audio context on mobile if needed
-          const audioContext = (audio as any).context;
-          if (audioContext && audioContext.state === "suspended") {
-            await audioContext.resume();
-          }
           await audio.play();
           setIsPlaying(true);
         } catch (error: any) {
@@ -387,47 +372,38 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       setCurrentTrack(track);
 
-      // Load and play immediately (no timeout to preserve gesture chain on mobile)
-      try {
-        audio.load();
-        
-        // Mobile fix: Resume audio context immediately before waiting for canplay
-        const audioContext = (audio as any).context;
-        if (audioContext?.state === "suspended") {
-          await audioContext.resume().catch((err: any) => 
-            console.warn("Context resume warning:", err)
-          );
+      playTimeoutRef.current = setTimeout(async () => {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const handleCanPlay = () => {
+              audio.removeEventListener("canplay", handleCanPlay);
+              audio.removeEventListener("error", handleError);
+              resolve();
+            };
+
+            const handleError = (e: Event) => {
+              audio.removeEventListener("canplay", handleCanPlay);
+              audio.removeEventListener("error", handleError);
+              reject(e);
+            };
+
+            audio.addEventListener("canplay", handleCanPlay, { once: true });
+            audio.addEventListener("error", handleError, { once: true });
+            audio.load();
+          });
+
+          await audio.play();
+          setIsPlaying(true);
+        } catch (error: any) {
+          if (
+            error.name !== "AbortError" &&
+            !error.message?.includes("pause")
+          ) {
+            console.error("Play error (new track):", error);
+          }
+          setIsPlaying(false);
         }
-
-        // Wait for canplay
-        await new Promise<void>((resolve, reject) => {
-          const handleCanPlay = () => {
-            audio.removeEventListener("canplay", handleCanPlay);
-            audio.removeEventListener("error", handleError);
-            resolve();
-          };
-
-          const handleError = (e: Event) => {
-            audio.removeEventListener("canplay", handleCanPlay);
-            audio.removeEventListener("error", handleError);
-            reject(e);
-          };
-
-          audio.addEventListener("canplay", handleCanPlay, { once: true });
-          audio.addEventListener("error", handleError, { once: true });
-        });
-
-        await audio.play();
-        setIsPlaying(true);
-      } catch (error: any) {
-        if (
-          error.name !== "AbortError" &&
-          !error.message?.includes("pause")
-        ) {
-          console.error("Play error (new track):", error);
-        }
-        setIsPlaying(false);
-      }
+      }, 50);
     },
     [currentTrack, shuffle]
   );
@@ -440,12 +416,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const resume = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-
-    // Mobile fix: Resume audio context if suspended
-    const audioContext = (audio as any).context;
-    if (audioContext?.state === "suspended") {
-      audioContext.resume().catch((err: any) => console.warn("Context resume warning:", err));
-    }
 
     audio
       .play()
