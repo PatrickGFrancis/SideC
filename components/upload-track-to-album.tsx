@@ -39,7 +39,7 @@ export function UploadTrackToAlbum({
   const [artist, setArtist] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStage, setUploadStage] = useState<
+  const [uploadStage, setUploadStage] = useState
     "preparing" | "uploading" | "processing" | "saving" | "complete"
   >("preparing");
   const [isIAConnected, setIsIAConnected] = useState(false);
@@ -174,6 +174,7 @@ export function UploadTrackToAlbum({
 
         xhr.open("PUT", signedData.uploadUrl);
         
+        // Set all headers from the server (Date is not included to avoid browser blocking)
         Object.entries(signedData.headers).forEach(([key, value]) => {
           xhr.setRequestHeader(key, value as string);
         });

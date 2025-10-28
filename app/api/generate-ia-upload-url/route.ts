@@ -93,13 +93,13 @@ export async function POST(request: NextRequest) {
     const uploadUrl = `https://s3.us.archive.org/${bucketName}/${cleanFileName}`;
 
     // Return signed URL and headers for client to use
+    // Note: Date is included in signature but not sent as header (browsers block it)
     return NextResponse.json({
       success: true,
       uploadUrl,
       headers: {
         Authorization: authorization,
         "Content-Type": contentType,
-        Date: date,
         "x-amz-auto-make-bucket": "1",
         "x-archive-meta-mediatype": "audio",
         "x-archive-meta-title": sanitizedTitle,
