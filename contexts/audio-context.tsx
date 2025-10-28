@@ -103,14 +103,30 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       console.log("Audio ready to play");
     };
 
+    // Listen for mobile audio enabler
+    const handleAudioEnabled = () => {
+      const audioContext = (audio as any).context;
+      if (audioContext?.state === "suspended") {
+        audioContext.resume().then(() => {
+          console.log("Audio context resumed after mobile enable");
+          // Try to play if there's a current track
+          if (audio.src) {
+            audio.play().catch((err: any) => console.warn("Auto-play after enable failed:", err));
+          }
+        });
+      }
+    };
+
     audio.addEventListener("timeupdate", updateTime);
     audio.addEventListener("loadedmetadata", updateDuration);
     audio.addEventListener("canplay", handleCanPlay);
+    window.addEventListener("audioEnabled", handleAudioEnabled);
 
     return () => {
       audio.removeEventListener("timeupdate", updateTime);
       audio.removeEventListener("loadedmetadata", updateDuration);
       audio.removeEventListener("canplay", handleCanPlay);
+      window.removeEventListener("audioEnabled", handleAudioEnabled);
       audio.pause();
       preloadAudio.pause();
 
@@ -322,6 +338,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     async (track: Track, newPlaylist?: Track[]) => {
       const audio = audioRef.current;
       if (!audio) return;
+
+      // Trigger mobile audio enabler if needed
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("audioPlayAttempt"));
+      }
 
       const audioUrl = track.playbackUrl || track.audio_url;
       if (!audioUrl) {

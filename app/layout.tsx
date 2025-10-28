@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { AudioProvider } from "@/contexts/audio-context";
 import { OptimisticTracksProvider } from "@/contexts/optimistic-tracks-context";
 import { GlobalAudioPlayer } from "@/components/global-audio-player";
+import { MobileAudioEnabler } from "@/components/mobile-audio-enabler"; // ADD THIS LINE
 
 export const metadata: Metadata = {
   title: "Titled - Your Music Library",
@@ -45,6 +46,7 @@ export default function RootLayout({
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <AudioProvider>
           <OptimisticTracksProvider>
+            <MobileAudioEnabler /> {/* ADD THIS LINE */}
             {children}
             <GlobalAudioPlayer />
             <Toaster />
