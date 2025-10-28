@@ -194,28 +194,49 @@ export function UploadTrackToAlbum({
       // Fetch the real CDN URL from IA metadata
       let finalPlaybackUrl = signedData.playbackUrl;
       try {
-        // Wait a bit for IA to process
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        // Poll IA metadata API until file is ready (max 30 seconds)
+        let attempts = 0;
+        let maxAttempts = 10; // Try for up to 30 seconds
+        let metadata = null;
+        let fileMetadata = null;
 
-        const metadataResponse = await fetch(
-          `https://archive.org/metadata/${signedData.identifier}`
-        );
-        const metadata = await metadataResponse.json();
+        while (attempts < maxAttempts && !fileMetadata) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          attempts++;
 
-        // Find the uploaded file in the metadata
-        const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const fileMetadata = metadata.files?.find(
-          (f: any) => f.name === cleanFileName
-        );
+          console.log(
+            `Checking IA metadata (attempt ${attempts}/${maxAttempts})...`
+          );
 
-        if (fileMetadata?.name) {
-          // Construct the CDN URL from metadata
-          const server = metadata.server || "archive.org";
-          const dir = metadata.dir || "";
-          finalPlaybackUrl = `https://${server}${dir}/${fileMetadata.name}`;
-          console.log("✅ Got CDN URL:", finalPlaybackUrl);
-        } else {
-          console.warn("⚠️ File not found in metadata yet, using download URL");
+          try {
+            const metadataResponse = await fetch(
+              `https://archive.org/metadata/${signedData.identifier}`
+            );
+            metadata = await metadataResponse.json();
+
+            // Find the uploaded file in the metadata
+            const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+            fileMetadata = metadata.files?.find(
+              (f: any) => f.name === cleanFileName
+            );
+
+            if (fileMetadata?.name) {
+              // Construct the CDN URL from metadata
+              const server = metadata.server || "archive.org";
+              const dir = metadata.dir || "";
+              finalPlaybackUrl = `https://${server}${dir}/${fileMetadata.name}`;
+              console.log("✅ Got CDN URL:", finalPlaybackUrl);
+              break;
+            }
+          } catch (e) {
+            console.warn(`Metadata fetch attempt ${attempts} failed:`, e);
+          }
+        }
+
+        if (!fileMetadata) {
+          console.warn(
+            "⚠️ File not found in metadata after 30s, using download URL"
+          );
         }
       } catch (error) {
         console.warn(
