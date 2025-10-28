@@ -8,15 +8,15 @@ function createIASignature(
   bucket: string,
   key: string,
   contentType: string,
-  date: string,
   accessKey: string,
   secretKey: string
 ) {
+  // Don't include Date in signature since browsers block that header
   const stringToSign = [
     method,
-    "",
+    "", // Content-MD5
     contentType,
-    date,
+    "", // Date (empty)
     "x-amz-auto-make-bucket:1",
     `/${bucket}/${key}`,
   ].join("\n");
@@ -79,15 +79,12 @@ export async function POST(request: NextRequest) {
     const bucketName = `music-${timestamp}-${randomStr}`;
     const cleanFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
 
-    const date = new Date().toUTCString();
-
     // Create signature
     const authorization = createIASignature(
       "PUT",
       bucketName,
       cleanFileName,
       contentType,
-      date,
       cleanUsername,
       cleanPassword
     );
@@ -96,7 +93,7 @@ export async function POST(request: NextRequest) {
     const playbackUrl = `https://archive.org/download/${bucketName}/${cleanFileName}`;
 
     // Return signed URL and headers for client to use
-    // Note: Date is included in signature but not sent as header (browsers block it)
+    // Note: Date is not included to avoid browser restrictions
     return NextResponse.json({
       success: true,
       uploadUrl,
