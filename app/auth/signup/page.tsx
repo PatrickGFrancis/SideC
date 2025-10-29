@@ -1,18 +1,24 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { createClient } from '@/lib/supabase';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Link from 'next/link';
-import { useToast } from '@/hooks/use-toast';
+import { Suspense, useState } from "react";
+import { createClient } from "@/lib/supabase";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import Link from "next/link";
+import { useToast } from "@/hooks/use-toast";
 
-export default function SignupPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+function SignupForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -33,28 +39,29 @@ export default function SignupPage() {
 
     if (error) {
       toast({
-        title: 'Signup failed',
+        title: "Signup failed",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
       setLoading(false);
     } else {
       toast({
-        title: 'Account created!',
-        description: 'You can now sign in.',
+        title: "Account created!",
+        description: "You can now sign in.",
       });
 
       // Handle redirect after signup
-      const returnTo = searchParams.get('returnTo');
-      const autoSave = searchParams.get('autoSave');
-      
-      if (returnTo && autoSave === 'true') {
-        // Pass the parameters to login page
-        router.push(`/auth/login?returnTo=${encodeURIComponent(returnTo)}&autoSave=true`);
+      const returnTo = searchParams.get("returnTo");
+      const autoSave = searchParams.get("autoSave");
+
+      if (returnTo && autoSave === "true") {
+        router.push(
+          `/auth/login?returnTo=${encodeURIComponent(returnTo)}&autoSave=true`
+        );
       } else if (returnTo) {
         router.push(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
       } else {
-        router.push('/auth/login');
+        router.push("/auth/login");
       }
 
       setLoading(false);
@@ -94,13 +101,15 @@ export default function SignupPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Sign up'}
+              {loading ? "Creating account..." : "Sign up"}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            Already have an account?{' '}
-            <Link 
-              href={`/auth/login${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+            Already have an account?{" "}
+            <Link
+              href={`/auth/login${
+                searchParams.toString() ? `?${searchParams.toString()}` : ""
+              }`}
               className="text-primary hover:underline"
             >
               Sign in
@@ -109,5 +118,17 @@ export default function SignupPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    }>
+      <SignupForm />
+    </Suspense>
   );
 }
