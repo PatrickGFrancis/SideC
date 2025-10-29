@@ -2,6 +2,11 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // Allow public access to share pages FIRST (before any auth checks)
+  if (request.nextUrl.pathname.startsWith('/share/')) {
+    return NextResponse.next()
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -53,11 +58,6 @@ export async function middleware(request: NextRequest) {
       },
     }
   )
-
-  // Allow public access to share pages
-  if (request.nextUrl.pathname.startsWith('/share/')) {
-    return response
-  }
 
   const { data: { session } } = await supabase.auth.getSession()
 
