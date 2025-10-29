@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft, Music, Clock, Lock } from "lucide-react";
 import Image from "next/image";
+import { SaveAlbumButton } from "@/components/save-album-button";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -155,10 +156,14 @@ export default async function ShareAlbumPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                {/* Guest badge */}
-                <div className="inline-flex items-center gap-2 text-sm text-muted-foreground bg-secondary/30 px-3 py-1.5 rounded-full w-fit mx-auto md:mx-0">
-                  <Lock className="h-3 w-3" />
-                  <span>Viewing as guest</span>
+                {/* Guest badge and Save button */}
+                <div className="flex flex-col sm:flex-row items-center gap-3 justify-center md:justify-start">
+                  <div className="inline-flex items-center gap-2 text-sm text-muted-foreground bg-secondary/30 px-3 py-1.5 rounded-full">
+                    <Lock className="h-3 w-3" />
+                    <span>Viewing as guest</span>
+                  </div>
+                  
+                  <SaveAlbumButton albumId={id} albumTitle={album.title} />
                 </div>
               </div>
             </div>
