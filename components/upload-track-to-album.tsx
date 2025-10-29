@@ -174,7 +174,7 @@ export function UploadTrackToAlbum({
 
     const optimisticTrackId = `temp-${Date.now()}`;
 
-    // Add optimistic track immediately
+    // Add optimistic track almost immediately (small delay for dialog close)
     setTimeout(() => {
       addOptimisticTrack({
         id: optimisticTrackId,
@@ -185,13 +185,11 @@ export function UploadTrackToAlbum({
         isUploading: true,
         uploadProgress: 0,
       });
-    }, 0);
+    }, 100);
 
     const updateProgress = (progress: number) => {
       setUploadProgress(progress);
-      setTimeout(() => {
-        updateOptimisticTrack(optimisticTrackId, { uploadProgress: progress });
-      }, 0);
+      updateOptimisticTrack(optimisticTrackId, { uploadProgress: progress });
     };
 
     try {
