@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const supabase = createClient();
 
@@ -36,15 +37,28 @@ export default function SignupPage() {
         description: error.message,
         variant: 'destructive',
       });
+      setLoading(false);
     } else {
       toast({
         title: 'Account created!',
         description: 'You can now sign in.',
       });
-      router.push('/auth/login');
-    }
 
-    setLoading(false);
+      // Handle redirect after signup
+      const returnTo = searchParams.get('returnTo');
+      const autoSave = searchParams.get('autoSave');
+      
+      if (returnTo && autoSave === 'true') {
+        // Pass the parameters to login page
+        router.push(`/auth/login?returnTo=${encodeURIComponent(returnTo)}&autoSave=true`);
+      } else if (returnTo) {
+        router.push(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
+      } else {
+        router.push('/auth/login');
+      }
+
+      setLoading(false);
+    }
   };
 
   return (
@@ -85,7 +99,10 @@ export default function SignupPage() {
           </form>
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}
-            <Link href="/auth/login" className="text-primary hover:underline">
+            <Link 
+              href={`/auth/login${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+              className="text-primary hover:underline"
+            >
               Sign in
             </Link>
           </div>
