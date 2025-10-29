@@ -23,9 +23,16 @@ interface AudioPlayerProps {
   albumTitle: string;
   albumId: string;
   coverUrl?: string;
+  isGuest?: boolean;
 }
 
-export function AudioPlayer({ tracks, albumTitle, albumId, coverUrl }: AudioPlayerProps) {
+export function AudioPlayer({ 
+  tracks, 
+  albumTitle, 
+  albumId, 
+  coverUrl,
+  isGuest = false 
+}: AudioPlayerProps) {
   const globalAudio = useAudio();
   const prevTracksRef = useRef<string>("");
 
@@ -152,6 +159,7 @@ export function AudioPlayer({ tracks, albumTitle, albumId, coverUrl }: AudioPlay
           albumTitle={albumTitle}
           coverUrl={coverUrl}
           onPlay={handlePlay}
+          isGuest={isGuest}
         />
       </div>
     </div>

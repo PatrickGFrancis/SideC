@@ -53,17 +53,22 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { title, artist, description, releaseDate } = await request.json()
+    const body = await request.json()
+    const { title, artist, description, releaseDate, isPublic } = body
+
+    // Build update object - only include fields that are provided
+    const updateData: any = {}
+    
+    if (title !== undefined) updateData.title = title
+    if (artist !== undefined) updateData.artist = artist
+    if (description !== undefined) updateData.description = description
+    if (releaseDate !== undefined) updateData.release_date = releaseDate
+    if (isPublic !== undefined) updateData.is_public = isPublic
 
     // Update album
     const { error: updateError } = await supabase
       .from('albums')
-      .update({
-        title,
-        artist,
-        description,
-        release_date: releaseDate,
-      })
+      .update(updateData)
       .eq('id', id)
       .eq('user_id', user.id)
 

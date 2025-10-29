@@ -4,16 +4,14 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft, Music, Clock } from "lucide-react";
 import { getAlbumById } from "@/lib/data";
-import { UploadTrackToAlbum } from "@/components/upload-track-to-album";
-import { DeleteAlbum } from "@/components/delete-album";
 import { TrackStatusChecker } from "@/components/track-status-checker";
 import { UploadAlbumCover } from "@/components/upload-album-cover";
-import { EditAlbum } from "@/components/edit-album";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import Image from "next/image";
 import { TrackDurationFetcher } from "@/components/track-duration-fetcher";
 import { AlbumPageClient } from "@/components/album-page-client";
+import { AlbumActionsMenu } from "@/components/album-actions-menu";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -187,17 +185,17 @@ async function AlbumContent({ id }: { id: string }) {
                   </div>
                 </div>
 
-                {/* Action buttons - centered on mobile, right on desktop */}
+                {/* Action button - 3-dot menu only */}
                 <div className="flex gap-2 flex-shrink-0 justify-center md:justify-end">
-                  <EditAlbum
+                  <AlbumActionsMenu
                     albumId={id}
+                    albumTitle={album.title}
+                    isPublic={album.isPublic || false}
                     currentTitle={album.title}
                     currentArtist={album.artist}
                     currentDescription={album.description}
                     currentReleaseDate={album.releaseDate}
                   />
-                  <UploadTrackToAlbum albumId={id} />
-                  <DeleteAlbum albumId={id} albumTitle={album.title} />
                 </div>
               </div>
             </div>
@@ -218,10 +216,9 @@ async function AlbumContent({ id }: { id: string }) {
                   No tracks yet
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Upload your first track to get started
+                  Click the menu to upload your first track
                 </p>
               </div>
-              <UploadTrackToAlbum albumId={id} />
             </div>
           </div>
         ) : (

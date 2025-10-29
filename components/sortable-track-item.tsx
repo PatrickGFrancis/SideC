@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Loader2, Upload } from "lucide-react";
+import { GripVertical, Loader2, Upload, ExternalLink } from "lucide-react";
 import { TrackMenu } from "@/components/track-menu";
 import { useAudio } from "@/contexts/audio-context";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 
 interface Track {
   id: string;
@@ -17,6 +18,7 @@ interface Track {
   audio_url?: string;
   processing?: boolean;
   duration?: number | string;
+  iaDetailsUrl?: string;
   // Optimistic upload properties
   isUploading?: boolean;
   uploadProgress?: number;
@@ -32,6 +34,7 @@ interface SortableTrackItemProps {
   disabled?: boolean;
   isDeleting?: boolean;
   onDelete?: (trackId: string) => void;
+  isGuest?: boolean;
 }
 
 // Helper to format duration
@@ -68,6 +71,7 @@ export function SortableTrackItem({
   disabled,
   isDeleting = false,
   onDelete,
+  isGuest = false,
 }: SortableTrackItemProps) {
   const { currentTrack, isPlaying, preload } = useAudio();
   const [isLoading, setIsLoading] = useState(false);
@@ -85,7 +89,7 @@ export function SortableTrackItem({
     isDragging,
   } = useSortable({
     id: track.id,
-    disabled: disabled || isProcessing || isDeleting || isUploading,
+    disabled: disabled || isProcessing || isDeleting || isUploading || isGuest,
   });
 
   const style = {
@@ -141,10 +145,10 @@ export function SortableTrackItem({
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          {/* Drag handle or Upload icon */}
+          {/* Drag handle or Upload icon (hide for guests) */}
           {isUploading ? (
             <Upload className="h-4 w-4 text-primary animate-pulse" />
-          ) : (
+          ) : !isGuest ? (
             <button
               {...attributes}
               {...listeners}
@@ -159,6 +163,8 @@ export function SortableTrackItem({
             >
               <GripVertical className="h-4 w-4" />
             </button>
+          ) : (
+            <div className="w-4" />
           )}
 
           {/* Track number */}
@@ -240,22 +246,41 @@ export function SortableTrackItem({
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
           )}
 
-          {/* Track menu - hide during upload */}
+          {/* For guests: show IA link button, For owners: show track menu */}
           {!isUploading && (
             <div onClick={(e) => e.stopPropagation()}>
-              <TrackMenu
-                albumId={albumId}
-                trackId={track.id}
-                trackTitle={track.title}
-                playbackUrl={track.playbackUrl || track.audio_url}
-                onDeleteStart={() => onDelete?.(track.id)}
-                track={{
-                  ...track,
-                  albumTitle,
-                  albumId,
-                  coverUrl,
-                }}
-              />
+              {isGuest && track.iaDetailsUrl ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                  asChild
+                >
+                  
+                    href={track.iaDetailsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="View on Internet Archive"
+                  >
+                  <a>
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              ) : !isGuest ? (
+                <TrackMenu
+                  albumId={albumId}
+                  trackId={track.id}
+                  trackTitle={track.title}
+                  playbackUrl={track.playbackUrl || track.audio_url}
+                  onDeleteStart={() => onDelete?.(track.id)}
+                  track={{
+                    ...track,
+                    albumTitle,
+                    albumId,
+                    coverUrl,
+                  }}
+                />
+              ) : null}
             </div>
           )}
         </div>

@@ -338,12 +338,14 @@ export function UploadTrackToAlbum({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="gap-2 hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all">
-          <Upload className="h-4 w-4" />
-          Upload Track
-        </Button>
-      </DialogTrigger>
+      {!onOpenChange && (
+        <DialogTrigger asChild>
+          <Button className="gap-2 hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all">
+            <Upload className="h-4 w-4" />
+            Upload Track
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
         <DialogHeader>
           <DialogTitle>Upload Track</DialogTitle>

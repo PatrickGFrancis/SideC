@@ -20,12 +20,23 @@ import { Trash2, Undo2 } from "lucide-react";
 interface DeleteAlbumProps {
   albumId: string;
   albumTitle: string;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function DeleteAlbum({ albumId, albumTitle }: DeleteAlbumProps) {
+export function DeleteAlbum({ 
+  albumId, 
+  albumTitle,
+  isOpen: controlledOpen,
+  onOpenChange 
+}: DeleteAlbumProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
 
   const handleUndo = async (deletedAlbumId: string) => {
     try {
@@ -91,13 +102,15 @@ export function DeleteAlbum({ albumId, albumTitle }: DeleteAlbumProps) {
   };
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="destructive" size="sm" className="gap-2">
-          <Trash2 className="h-4 w-4" />
-          Delete Album
-        </Button>
-      </AlertDialogTrigger>
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      {!onOpenChange && (
+        <AlertDialogTrigger asChild>
+          <Button variant="destructive" size="sm" className="gap-2">
+            <Trash2 className="h-4 w-4" />
+            Delete Album
+          </Button>
+        </AlertDialogTrigger>
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Are you sure?</AlertDialogTitle>

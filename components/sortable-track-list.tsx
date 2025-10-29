@@ -42,6 +42,7 @@ interface SortableTrackListProps {
   albumTitle: string;
   coverUrl?: string;
   onPlay: (track: Track, tracks: Track[]) => void;
+  isGuest?: boolean;
 }
 
 export function SortableTrackList({
@@ -50,6 +51,7 @@ export function SortableTrackList({
   albumTitle,
   coverUrl,
   onPlay,
+  isGuest = false,
 }: SortableTrackListProps) {
   const [tracks, setTracks] = useState(initialTracks);
   const { optimisticTracks } = useOptimisticTracks();
@@ -60,8 +62,8 @@ export function SortableTrackList({
   const { toast } = useToast();
   const { updatePlaylist, currentTrack } = useAudio();
 
-  // Merge server tracks with optimistic tracks for this album
-  const albumOptimisticTracks = optimisticTracks.filter(t => t.albumId === albumId);
+  // Merge server tracks with optimistic tracks for this album (only for owners)
+  const albumOptimisticTracks = isGuest ? [] : optimisticTracks.filter(t => t.albumId === albumId);
   const allTracks = [...tracks, ...albumOptimisticTracks];
 
   // Update tracks when initialTracks changes
@@ -111,6 +113,9 @@ export function SortableTrackList({
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    // Guests cannot reorder
+    if (isGuest) return;
+
     const { active, over } = event;
 
     if (!over || active.id === over.id) {
@@ -195,6 +200,30 @@ export function SortableTrackList({
             disabled={true}
             isDeleting={false}
             onDelete={handleTrackDelete}
+            isGuest={isGuest}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // For guests, render simple list without drag-and-drop
+  if (isGuest) {
+    return (
+      <div className="space-y-2">
+        {allTracks.map((track, index) => (
+          <SortableTrackItem
+            key={track.id}
+            track={track}
+            index={index}
+            albumId={albumId}
+            albumTitle={albumTitle}
+            coverUrl={coverUrl}
+            onPlay={() => onPlay(track, allTracks)}
+            disabled={false}
+            isDeleting={false}
+            onDelete={handleTrackDelete}
+            isGuest={true}
           />
         ))}
       </div>
@@ -221,6 +250,7 @@ export function SortableTrackList({
               disabled={isSaving || track.isUploading}
               isDeleting={deletingTrackId === track.id}
               onDelete={handleTrackDelete}
+              isGuest={false}
             />
           ))}
         </div>

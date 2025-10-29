@@ -23,6 +23,8 @@ interface EditAlbumProps {
   currentArtist: string;
   currentDescription?: string;
   currentReleaseDate?: string;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function EditAlbum({
@@ -31,11 +33,16 @@ export function EditAlbum({
   currentArtist,
   currentDescription,
   currentReleaseDate,
+  isOpen: controlledOpen,
+  onOpenChange,
 }: EditAlbumProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [title, setTitle] = useState(currentTitle);
   const [artist, setArtist] = useState(currentArtist);
   const [description, setDescription] = useState(currentDescription || '');
+  
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
   
   // Format date for input (YYYY-MM-DD) without timezone conversion
   const formatDateForInput = (dateString?: string) => {
@@ -98,11 +105,13 @@ export function EditAlbum({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="icon" className="hover:bg-secondary/50 transition-all">
-          <Pencil className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+      {!onOpenChange && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="icon" className="hover:bg-secondary/50 transition-all">
+            <Pencil className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
         <DialogHeader>
           <DialogTitle>Edit Album</DialogTitle>
