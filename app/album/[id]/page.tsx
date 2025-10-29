@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowLeft, Music, Clock } from "lucide-react";
+import { ArrowLeft, Music, Clock, Bookmark } from "lucide-react";
 import { getAlbumById } from "@/lib/data";
 import { TrackStatusChecker } from "@/components/track-status-checker";
 import { UploadAlbumCover } from "@/components/upload-album-cover";
@@ -88,6 +88,8 @@ async function AlbumContent({ id }: { id: string }) {
     notFound();
   }
 
+  const isOwned = album.isOwned !== false; // Default to true for backward compatibility
+
   // Debug: Log what durations we're getting
   console.log(
     "Album tracks durations:",
@@ -107,10 +109,14 @@ async function AlbumContent({ id }: { id: string }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <TrackStatusChecker tracks={album.tracks} albumId={id} />
-      <TrackDurationFetcher tracks={album.tracks} albumId={id} />
+      {isOwned && (
+        <>
+          <TrackStatusChecker tracks={album.tracks} albumId={id} />
+          <TrackDurationFetcher tracks={album.tracks} albumId={id} />
+        </>
+      )}
 
-      {/* Enhanced header - scrolls naturally on all devices */}
+      {/* Enhanced header */}
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-6">
           <Link href="/" prefetch={true}>
@@ -125,7 +131,7 @@ async function AlbumContent({ id }: { id: string }) {
           </Link>
 
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
-            {/* Album cover with enhanced styling */}
+            {/* Album cover */}
             <div className="relative group mx-auto md:mx-0">
               <div className="h-48 w-48 overflow-hidden rounded-xl bg-secondary/30 shadow-lg ring-1 ring-border/50">
                 <Image
@@ -137,12 +143,22 @@ async function AlbumContent({ id }: { id: string }) {
                   priority
                 />
               </div>
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm rounded-xl">
-                <UploadAlbumCover albumId={id} />
-              </div>
+              {/* Only show upload cover option if owned */}
+              {isOwned && (
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm rounded-xl">
+                  <UploadAlbumCover albumId={id} />
+                </div>
+              )}
+              {/* Show "Saved" badge if not owned */}
+              {!isOwned && (
+                <div className="absolute top-2 left-2 bg-primary/90 backdrop-blur-sm text-primary-foreground px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-1.5 shadow-lg">
+                  <Bookmark className="h-4 w-4 fill-current" />
+                  Saved
+                </div>
+              )}
             </div>
 
-            {/* Album info with gradient text */}
+            {/* Album info */}
             <div className="flex-1">
               <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
                 <div className="flex-1 min-w-0 text-center md:text-left">
@@ -185,18 +201,20 @@ async function AlbumContent({ id }: { id: string }) {
                   </div>
                 </div>
 
-                {/* Action button - 3-dot menu only */}
-                <div className="flex gap-2 flex-shrink-0 justify-center md:justify-end">
-                  <AlbumActionsMenu
-                    albumId={id}
-                    albumTitle={album.title}
-                    isPublic={album.isPublic || false}
-                    currentTitle={album.title}
-                    currentArtist={album.artist}
-                    currentDescription={album.description}
-                    currentReleaseDate={album.releaseDate}
-                  />
-                </div>
+                {/* Action button - only show menu if owned */}
+                {isOwned && (
+                  <div className="flex gap-2 flex-shrink-0 justify-center md:justify-end">
+                    <AlbumActionsMenu
+                      albumId={id}
+                      albumTitle={album.title}
+                      isPublic={album.isPublic || false}
+                      currentTitle={album.title}
+                      currentArtist={album.artist}
+                      currentDescription={album.description}
+                      currentReleaseDate={album.releaseDate}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -215,9 +233,11 @@ async function AlbumContent({ id }: { id: string }) {
                 <p className="text-lg font-medium text-foreground/90">
                   No tracks yet
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Click the menu to upload your first track
-                </p>
+                {isOwned && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Click the menu to upload your first track
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -227,6 +247,7 @@ async function AlbumContent({ id }: { id: string }) {
             albumTitle={album.title}
             albumId={id}
             coverUrl={album.coverUrl}
+            isGuest={!isOwned}
           />
         )}
       </main>

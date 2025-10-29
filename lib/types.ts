@@ -18,9 +18,10 @@ export interface Track {
   artist?: string
   source?: string
   created_at?: string
-  processing?: boolean // New field for IA processing status
+  processing?: boolean
 }
 
 export interface AlbumWithTracks extends Album {
   tracks: Track[]
+  isOwned?: boolean
 }
