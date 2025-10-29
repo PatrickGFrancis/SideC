@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { BookmarkPlus, BookmarkCheck, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface SaveAlbumButtonProps {
   albumId: string;
@@ -19,10 +18,19 @@ export function SaveAlbumButton({ albumId, albumTitle }: SaveAlbumButtonProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     checkAuthAndSaveStatus();
   }, [albumId]);
+
+  // Auto-save after login if saveAlbum param exists
+  useEffect(() => {
+    const shouldAutoSave = searchParams.get("autoSave");
+    if (shouldAutoSave === "true" && isAuthenticated && !isSaved && !isLoading) {
+      handleSave(true);
+    }
+  }, [isAuthenticated, isSaved, searchParams]);
 
   const checkAuthAndSaveStatus = async () => {
     setIsCheckingAuth(true);
@@ -43,11 +51,11 @@ export function SaveAlbumButton({ albumId, albumTitle }: SaveAlbumButtonProps) {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (isAutoSave = false) => {
     // If not authenticated, redirect to login with return URL
     if (!isAuthenticated) {
-      const returnUrl = encodeURIComponent(window.location.pathname);
-      router.push(`/auth/login?returnTo=${returnUrl}&saveAlbum=${albumId}`);
+      const currentUrl = window.location.pathname;
+      router.push(`/auth/login?returnTo=${encodeURIComponent(currentUrl)}&autoSave=true`);
       return;
     }
 
@@ -68,6 +76,8 @@ export function SaveAlbumButton({ albumId, albumTitle }: SaveAlbumButtonProps) {
             title: "Removed from library",
             description: `"${albumTitle}" has been removed from your library.`,
           });
+        } else {
+          throw new Error("Failed to unsave");
         }
       } else {
         // Save
@@ -79,13 +89,18 @@ export function SaveAlbumButton({ albumId, albumTitle }: SaveAlbumButtonProps) {
 
         if (response.ok) {
           setIsSaved(true);
-          toast({
-            title: "Saved to library",
-            description: `"${albumTitle}" has been added to your library.`,
-          });
+          if (!isAutoSave) {
+            toast({
+              title: "Saved to library",
+              description: `"${albumTitle}" has been added to your library.`,
+            });
+          }
+        } else {
+          throw new Error("Failed to save");
         }
       }
     } catch (error) {
+      console.error("Save error:", error);
       toast({
         title: "Error",
         description: "Failed to update library. Please try again.",
@@ -106,7 +121,7 @@ export function SaveAlbumButton({ albumId, albumTitle }: SaveAlbumButtonProps) {
 
   return (
     <Button
-      onClick={handleSave}
+      onClick={() => handleSave()}
       disabled={isLoading}
       variant={isSaved ? "default" : "outline"}
       size="lg"

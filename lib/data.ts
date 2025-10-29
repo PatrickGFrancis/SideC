@@ -31,6 +31,50 @@ export const getAllAlbums = cache(async (): Promise<Album[]> => {
   }))
 })
 
+// Get saved albums (albums bookmarked from other users)
+export const getSavedAlbums = cache(async (): Promise<Album[]> => {
+  const supabase = await createServerSupabaseClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('saved_albums')
+    .select(`
+      album_id,
+      albums!inner (
+        id,
+        title,
+        artist,
+        cover_url,
+        release_date,
+        description,
+        created_at,
+        is_public
+      )
+    `)
+    .eq('user_id', user.id)
+    .order('saved_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching saved albums:', error)
+    return []
+  }
+
+  // Extract and map the album data
+  return (data || [])
+    .map((item: any) => item.albums)
+    .filter((album: any) => album && album.is_public) // Only show public albums
+    .map((album: any) => ({
+      id: album.id,
+      title: album.title,
+      artist: album.artist,
+      coverUrl: album.cover_url,
+      releaseDate: album.release_date,
+      description: album.description,
+    }))
+})
+
 // Cache individual album with tracks
 export const getAlbumById = cache(async (id: string): Promise<AlbumWithTracks | null> => {
   const supabase = await createServerSupabaseClient()

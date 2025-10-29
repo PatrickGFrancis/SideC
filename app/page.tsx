@@ -1,4 +1,4 @@
-import { getAllAlbums } from "@/lib/data";
+import { getAllAlbums, getSavedAlbums } from "@/lib/data";
 import { UserMenu } from "@/components/user-menu";
 import { QuickCreateAlbum } from "@/components/quick-create-album";
 import { AlbumCard } from "@/components/album-card";
@@ -26,9 +26,27 @@ function AlbumsSkeleton() {
 
 // Separate component for albums list
 async function AlbumsList() {
-  const albums = await getAllAlbums();
+  const [myAlbums, savedAlbums] = await Promise.all([
+    getAllAlbums(),
+    getSavedAlbums(),
+  ]);
 
-  if (albums.length === 0) {
+  // Combine albums, marking saved ones and avoiding duplicates
+  const myAlbumIds = new Set(myAlbums.map((a) => a.id));
+  const uniqueSavedAlbums = savedAlbums.filter(
+    (album) => !myAlbumIds.has(album.id)
+  );
+
+  const allAlbums = [
+    ...myAlbums.map((album) => ({ ...album, isSaved: false, isOwned: true })),
+    ...uniqueSavedAlbums.map((album) => ({
+      ...album,
+      isSaved: true,
+      isOwned: false,
+    })),
+  ];
+
+  if (allAlbums.length === 0) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center text-center">
         <div className="rounded-2xl bg-card/50 border border-border/50 p-12 max-w-md">
@@ -44,7 +62,7 @@ async function AlbumsList() {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-      {albums.map((album) => (
+      {allAlbums.map((album) => (
         <AlbumCard key={album.id} album={album} />
       ))}
     </div>
