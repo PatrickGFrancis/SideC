@@ -93,7 +93,7 @@ export function UploadTrackToAlbum({
       case "uploading":
         return `Uploading to Internet Archive... ${uploadProgress}%`;
       case "processing":
-        return "Processing audio file...";
+        return "Waiting for Internet Archive to process file...";
       case "saving":
         return "Saving track to album...";
       case "complete":
@@ -103,16 +103,78 @@ export function UploadTrackToAlbum({
     }
   };
 
+  const pollForCDNUrl = async (
+    identifier: string,
+    fileName: string,
+    trackId: string
+  ) => {
+    console.log("🔄 Polling for CDN URL in background...");
+
+    let attempts = 0;
+
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      attempts++;
+
+      console.log(`Background check ${attempts}...`);
+
+      try {
+        const metadataResponse = await fetch(
+          `https://archive.org/metadata/${identifier}`
+        );
+        const metadata = await metadataResponse.json();
+
+        const cleanFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const fileMetadata = metadata.files?.find(
+          (f: any) => f.name === cleanFileName
+        );
+
+        if (fileMetadata?.name) {
+          const server = metadata.server || "archive.org";
+          const dir = metadata.dir || "";
+          const cdnUrl = `https://${server}${dir}/${fileMetadata.name}`;
+
+          console.log("✅ Got CDN URL in background:", cdnUrl);
+
+          // Update the track in database with CDN URL
+          await fetch(`/api/tracks/${trackId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playbackUrl: cdnUrl }),
+          });
+
+          // Refresh to show updated track
+          router.refresh();
+
+          console.log("✅ Track updated with CDN URL!");
+          break;
+        }
+      } catch (e) {
+        console.warn(`Background check ${attempts} failed:`, e);
+      }
+
+      // Safety: stop after 5 minutes (100 attempts)
+      if (attempts >= 100) {
+        console.warn("⚠️ Stopped polling after 5 minutes");
+        break;
+      }
+    }
+  };
+
   const handleUpload = async () => {
+    console.log("🚀 Upload started!");
     if (!file || !isIAConnected || !iaCredentials) return;
 
-    setOpen(false);
     setUploading(true);
     setUploadProgress(0);
     setUploadStage("preparing");
 
+    // Close dialog immediately after upload starts
+    setOpen(false);
+
     const optimisticTrackId = `temp-${Date.now()}`;
 
+    // Add optimistic track immediately
     setTimeout(() => {
       addOptimisticTrack({
         id: optimisticTrackId,
@@ -161,7 +223,7 @@ export function UploadTrackToAlbum({
         xhr.upload.addEventListener("progress", (e) => {
           if (e.lengthComputable) {
             const percentComplete = Math.round((e.loaded / e.total) * 100);
-            updateProgress(Math.min(percentComplete, 95));
+            updateProgress(Math.min(percentComplete, 100));
           }
         });
 
@@ -188,62 +250,7 @@ export function UploadTrackToAlbum({
       });
 
       updateProgress(100);
-      await new Promise((resolve) => setTimeout(resolve, 300));
       setUploadStage("processing");
-
-      // Fetch the real CDN URL from IA metadata
-      let finalPlaybackUrl = signedData.playbackUrl;
-      try {
-        // Poll IA metadata API until file is ready (max 30 seconds)
-        let attempts = 0;
-        let maxAttempts = 10; // Try for up to 30 seconds
-        let metadata = null;
-        let fileMetadata = null;
-
-        while (attempts < maxAttempts && !fileMetadata) {
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-          attempts++;
-
-          console.log(
-            `Checking IA metadata (attempt ${attempts}/${maxAttempts})...`
-          );
-
-          try {
-            const metadataResponse = await fetch(
-              `https://archive.org/metadata/${signedData.identifier}`
-            );
-            metadata = await metadataResponse.json();
-
-            // Find the uploaded file in the metadata
-            const cleanFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-            fileMetadata = metadata.files?.find(
-              (f: any) => f.name === cleanFileName
-            );
-
-            if (fileMetadata?.name) {
-              // Construct the CDN URL from metadata
-              const server = metadata.server || "archive.org";
-              const dir = metadata.dir || "";
-              finalPlaybackUrl = `https://${server}${dir}/${fileMetadata.name}`;
-              console.log("✅ Got CDN URL:", finalPlaybackUrl);
-              break;
-            }
-          } catch (e) {
-            console.warn(`Metadata fetch attempt ${attempts} failed:`, e);
-          }
-        }
-
-        if (!fileMetadata) {
-          console.warn(
-            "⚠️ File not found in metadata after 30s, using download URL"
-          );
-        }
-      } catch (error) {
-        console.warn(
-          "Could not fetch CDN URL from IA, using download URL:",
-          error
-        );
-      }
 
       // Fetch duration from local file
       let fetchedDuration = 0;
@@ -271,13 +278,13 @@ export function UploadTrackToAlbum({
         console.warn("Could not fetch duration from file:", error);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
       setUploadStage("saving");
 
+      // Save track immediately with download URL
       const trackData = {
         title: title || file.name,
         artist: artist || "Unknown Artist",
-        playbackUrl: finalPlaybackUrl, // ✅ Use the CDN URL!
+        playbackUrl: signedData.playbackUrl, // Use download URL for now
         iaDetailsUrl: signedData.iaDetailsUrl,
         fileName: file.name,
         duration: fetchedDuration,
@@ -292,12 +299,9 @@ export function UploadTrackToAlbum({
       const result = await dbResponse.json();
 
       if (result.success) {
+        const newTrackId = result.track.id;
+
         setUploadStage("complete");
-
-        setTimeout(() => {
-          removeOptimisticTrack(optimisticTrackId);
-        }, 0);
-
         setFile(null);
         setTitle("");
         setArtist("");
@@ -305,13 +309,19 @@ export function UploadTrackToAlbum({
         setUploadStage("preparing");
         setUploading(false);
 
-        setTimeout(() => {
-          router.refresh();
-        }, 100);
+        // Remove optimistic track before refresh
+        removeOptimisticTrack(optimisticTrackId);
+
+        // Refresh to show the real track
+        router.refresh();
+
+        // Poll for CDN URL in the background
+        pollForCDNUrl(signedData.identifier, file.name, newTrackId);
       } else {
         throw new Error("Failed to save track");
       }
     } catch (error: any) {
+      // Remove optimistic track on error
       setTimeout(() => {
         removeOptimisticTrack(optimisticTrackId);
       }, 0);
