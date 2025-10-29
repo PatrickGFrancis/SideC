@@ -54,6 +54,11 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // Allow public access to share pages
+  if (request.nextUrl.pathname.startsWith('/share/')) {
+    return response
+  }
+
   const { data: { session } } = await supabase.auth.getSession()
 
   // Redirect to login if not authenticated and trying to access protected routes
