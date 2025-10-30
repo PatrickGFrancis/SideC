@@ -396,8 +396,8 @@ export function ExpandedAudioPlayer({
             </Button>
           </div>
 
-          {/* Volume Control - Removed decorative bar */}
-          <div className="flex items-center gap-4 w-full max-w-xs">
+          {/* Volume Control - Hidden on mobile */}
+          <div className="hidden md:flex items-center gap-4 w-full max-w-xs">
             <Button
               variant="ghost"
               size="icon"
