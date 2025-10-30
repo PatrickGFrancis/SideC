@@ -323,7 +323,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const audio = audioRef.current;
       if (!audio) return;
 
-      const audioUrl = track.playbackUrl || track.audio_url;
+      // Try playbackUrl first, fallback to audio_url
+      let audioUrl = track.playbackUrl || track.audio_url;
+
+      // On mobile, prefer direct audio_url if available
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile && track.audio_url) {
+        audioUrl = track.audio_url;
+      }
+
       if (!audioUrl) {
         console.error("No audio URL for track:", track.title);
         return;
@@ -345,6 +353,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         try {
           await audio.play();
           setIsPlaying(true);
+
+          // Update media session for iOS lock screen
+          updateMediaSession(track);
         } catch (error: any) {
           if (error.name !== "AbortError") {
             console.error("Play error (resume):", error);
@@ -377,6 +388,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         audio.load();
         await audio.play();
         setIsPlaying(true);
+
+        // Update media session for iOS lock screen
+        updateMediaSession(track);
       } catch (error: any) {
         console.error("Immediate play failed, trying with delay:", error);
 
@@ -403,6 +417,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
             await audio.play();
             setIsPlaying(true);
+
+            // Update media session for iOS lock screen
+            updateMediaSession(track);
           } catch (error: any) {
             if (
               error.name !== "AbortError" &&
@@ -418,9 +435,88 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     [currentTrack, shuffle]
   );
 
+  // Add this helper function before the play function
+  const updateMediaSession = (track: Track) => {
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title,
+        artist: track.artist || track.albumTitle || "Unknown Artist",
+        album: track.albumTitle || "SideC",
+        artwork: [
+          {
+            src: track.coverUrl || "/icon-512.png",
+            sizes: "96x96",
+            type: "image/png",
+          },
+          {
+            src: track.coverUrl || "/icon-512.png",
+            sizes: "128x128",
+            type: "image/png",
+          },
+          {
+            src: track.coverUrl || "/icon-512.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: track.coverUrl || "/icon-512.png",
+            sizes: "256x256",
+            type: "image/png",
+          },
+          {
+            src: track.coverUrl || "/icon-512.png",
+            sizes: "384x384",
+            type: "image/png",
+          },
+          {
+            src: track.coverUrl || "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+        ],
+      });
+
+      // Set up action handlers for lock screen controls
+      navigator.mediaSession.setActionHandler("play", () => {
+        resume();
+      });
+
+      navigator.mediaSession.setActionHandler("pause", () => {
+        pause();
+      });
+
+      navigator.mediaSession.setActionHandler("previoustrack", () => {
+        if (hasPrevious) previous();
+      });
+
+      navigator.mediaSession.setActionHandler("nexttrack", () => {
+        if (hasNext) next();
+      });
+
+      navigator.mediaSession.setActionHandler("seekbackward", () => {
+        const audio = audioRef.current;
+        if (audio) {
+          audio.currentTime = Math.max(0, audio.currentTime - 10);
+        }
+      });
+
+      navigator.mediaSession.setActionHandler("seekforward", () => {
+        const audio = audioRef.current;
+        if (audio) {
+          audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
+        }
+      });
+    }
+  };
+
   const pause = useCallback(() => {
     audioRef.current?.pause();
     setIsPlaying(false);
+
+    // Update media session playback state
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = "paused";
+    }
   }, []);
 
   const resume = useCallback(() => {
@@ -429,7 +525,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
     audio
       .play()
-      .then(() => setIsPlaying(true))
+      .then(() => {
+        setIsPlaying(true);
+
+        // Update media session playback state
+        if ("mediaSession" in navigator) {
+          navigator.mediaSession.playbackState = "playing";
+        }
+      })
       .catch((error) => console.error("Resume error:", error));
   }, []);
 
