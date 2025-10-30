@@ -372,38 +372,48 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
       setCurrentTrack(track);
 
-      playTimeoutRef.current = setTimeout(async () => {
-        try {
-          await new Promise<void>((resolve, reject) => {
-            const handleCanPlay = () => {
-              audio.removeEventListener("canplay", handleCanPlay);
-              audio.removeEventListener("error", handleError);
-              resolve();
-            };
+      // Mobile Safari needs immediate user interaction
+      try {
+        audio.load();
+        await audio.play();
+        setIsPlaying(true);
+      } catch (error: any) {
+        console.error("Immediate play failed, trying with delay:", error);
 
-            const handleError = (e: Event) => {
-              audio.removeEventListener("canplay", handleCanPlay);
-              audio.removeEventListener("error", handleError);
-              reject(e);
-            };
+        // Fallback with delay
+        playTimeoutRef.current = setTimeout(async () => {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const handleCanPlay = () => {
+                audio.removeEventListener("canplay", handleCanPlay);
+                audio.removeEventListener("error", handleError);
+                resolve();
+              };
 
-            audio.addEventListener("canplay", handleCanPlay, { once: true });
-            audio.addEventListener("error", handleError, { once: true });
-            audio.load();
-          });
+              const handleError = (e: Event) => {
+                audio.removeEventListener("canplay", handleCanPlay);
+                audio.removeEventListener("error", handleError);
+                reject(e);
+              };
 
-          await audio.play();
-          setIsPlaying(true);
-        } catch (error: any) {
-          if (
-            error.name !== "AbortError" &&
-            !error.message?.includes("pause")
-          ) {
-            console.error("Play error (new track):", error);
+              audio.addEventListener("canplay", handleCanPlay, { once: true });
+              audio.addEventListener("error", handleError, { once: true });
+              audio.load();
+            });
+
+            await audio.play();
+            setIsPlaying(true);
+          } catch (error: any) {
+            if (
+              error.name !== "AbortError" &&
+              !error.message?.includes("pause")
+            ) {
+              console.error("Play error (delayed):", error);
+            }
+            setIsPlaying(false);
           }
-          setIsPlaying(false);
-        }
-      }, 50);
+        }, 50);
+      }
     },
     [currentTrack, shuffle]
   );
