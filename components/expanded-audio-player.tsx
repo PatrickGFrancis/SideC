@@ -82,16 +82,16 @@ function QueueTrackItem({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-all group",
+        "flex items-center gap-3 p-3 rounded-lg bg-secondary/30 transition-all group",
         isDragging && "opacity-50 shadow-xl z-50"
       )}
     >
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors touch-none"
+        className="cursor-grab active:cursor-grabbing text-muted-foreground transition-colors touch-none min-h-[44px] min-w-[44px] flex items-center justify-center"
       >
-        <GripVertical className="h-4 w-4" />
+        <GripVertical className="h-5 w-5" />
       </button>
 
       <span className="text-sm text-muted-foreground font-mono w-6">
@@ -117,9 +117,9 @@ function QueueTrackItem({
         variant="ghost"
         size="icon"
         onClick={onRemove}
-        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/20 hover:text-destructive"
+        className="h-10 w-10 flex-shrink-0 hover:bg-destructive/20 hover:text-destructive min-h-[44px] min-w-[44px]"
       >
-        <X className="h-4 w-4" />
+        <X className="h-5 w-5" />
       </Button>
     </div>
   );
@@ -170,11 +170,28 @@ export function ExpandedAudioPlayer({
     })
   );
 
+  // Prevent body scroll when expanded player is open
+  useEffect(() => {
+    if (isExpanded) {
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+    } else {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+    };
+  }, [isExpanded]);
+
   // Swipe down to close handler
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Only handle swipe from the top area (not during scrolling)
-    if (activeTab === "queue") return; // Don't interfere with queue scrolling
-
+    if (activeTab === "queue") return;
     const touch = e.touches[0];
     setDragStartY(touch.clientY);
   };
@@ -185,11 +202,9 @@ export function ExpandedAudioPlayer({
     const touch = e.touches[0];
     const diff = touch.clientY - dragStartY;
 
-    // Only allow dragging down
     if (diff > 0) {
       setDragOffset(diff);
 
-      // Add resistance for smoother feel
       if (containerRef.current) {
         const resistance = Math.min(diff / 3, 200);
         containerRef.current.style.transform = `translateY(${resistance}px)`;
@@ -200,11 +215,9 @@ export function ExpandedAudioPlayer({
   const handleTouchEnd = () => {
     if (dragStartY === null) return;
 
-    // If dragged down more than 100px, close the player
     if (dragOffset > 100) {
       handleCollapse();
     } else {
-      // Snap back
       if (containerRef.current) {
         containerRef.current.style.transform = "translateY(0)";
       }
@@ -226,7 +239,7 @@ export function ExpandedAudioPlayer({
     setTimeout(() => {
       setIsClosing(false);
       onCollapse();
-    }, 300);
+    }, 200);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -247,34 +260,33 @@ export function ExpandedAudioPlayer({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className={`fixed inset-0 bg-gradient-to-b from-background via-background to-card z-50 flex flex-col transition-all duration-300 ease-out ${
-        isClosing
-          ? "animate-out slide-out-to-bottom"
-          : "animate-in slide-in-from-bottom"
-      }`}
+      className={cn(
+        "fixed inset-0 bg-background z-50 flex flex-col transition-opacity duration-200",
+        isClosing ? "opacity-0" : "opacity-100"
+      )}
       style={{
-        transition: dragStartY !== null ? "none" : "transform 300ms ease-out",
+        transition: dragStartY !== null ? "none" : "opacity 200ms ease-out, transform 200ms ease-out",
       }}
     >
       {/* Swipe indicator */}
       {activeTab === "player" && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-muted-foreground/30 rounded-full md:hidden" />
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1 bg-muted-foreground/30 rounded-full md:hidden z-10" />
       )}
 
       {/* Header with tabs */}
-      <div className="border-b border-border/50 bg-card/30 backdrop-blur-xl">
-        <div className="flex items-center justify-between p-4">
+      <div className="border-b border-border/50 bg-card pt-safe flex-shrink-0">
+        <div className="flex items-center justify-between px-4 py-2">
           <Button
             variant="ghost"
             size="icon"
             onClick={handleCollapse}
-            className="hover:bg-secondary/50 hover:text-primary transition-all min-h-[44px] min-w-[44px]"
+            className="hover:bg-secondary/50 hover:text-primary transition-colors min-h-[44px] min-w-[44px]"
           >
             <ChevronDown className="h-6 w-6" />
           </Button>
           <Link
             href={currentTrack.albumId ? `/album/${currentTrack.albumId}` : "#"}
-            className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium min-h-[44px] flex items-center"
+            className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium min-h-[44px] flex items-center px-3"
             onClick={handleCollapse}
           >
             Go to Album
@@ -289,7 +301,7 @@ export function ExpandedAudioPlayer({
               "flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 min-h-[44px]",
               activeTab === "player"
                 ? "text-primary border-b-2 border-primary bg-secondary/20"
-                : "text-muted-foreground hover:text-foreground hover:bg-secondary/10"
+                : "text-muted-foreground"
             )}
           >
             <Music className="h-4 w-4" />
@@ -301,13 +313,13 @@ export function ExpandedAudioPlayer({
               "flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 relative min-h-[44px]",
               activeTab === "queue"
                 ? "text-primary border-b-2 border-primary bg-secondary/20"
-                : "text-muted-foreground hover:text-foreground hover:bg-secondary/10"
+                : "text-muted-foreground"
             )}
           >
             <ListMusic className="h-4 w-4" />
             Queue
             {fullQueue.length > 0 && (
-              <span className="absolute top-2 right-4 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              <span className="absolute top-2 right-4 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
                 {fullQueue.length}
               </span>
             )}
@@ -318,113 +330,115 @@ export function ExpandedAudioPlayer({
       {/* Tab Content */}
       {activeTab === "player" ? (
         /* Now Playing View */
-        <div className="flex-1 flex flex-col items-center justify-start px-8 pt-8 pb-12 max-w-2xl mx-auto w-full overflow-y-auto">
-          {/* Album Cover - Fixed to show full square image */}
-          <div className="relative w-full max-w-[280px] sm:max-w-xs mx-auto mb-8 rounded-2xl overflow-hidden shadow-2xl group">
-            <div className="aspect-square w-full">
-              <img
-                src={currentTrack.coverUrl || "/placeholder.svg"}
-                alt={currentTrack.title}
-                className="w-full h-full object-contain bg-secondary/20"
-                onError={(e) => {
-                  e.currentTarget.src = "/placeholder.svg";
-                }}
+        <div className="flex-1 flex flex-col items-center justify-between px-6 py-6 overflow-y-auto pb-safe">
+          <div className="w-full max-w-md mx-auto flex flex-col items-center flex-1 justify-center space-y-6">
+            {/* Album Cover */}
+            <div className="relative w-full max-w-[280px] mx-auto rounded-2xl overflow-hidden shadow-2xl">
+              <div className="aspect-square w-full">
+                <img
+                  src={currentTrack.coverUrl || "/placeholder.svg"}
+                  alt={currentTrack.title}
+                  className="w-full h-full object-contain bg-secondary/20"
+                  onError={(e) => {
+                    e.currentTarget.src = "/placeholder.svg";
+                  }}
+                />
+              </div>
+              <div className="absolute inset-0 rounded-2xl ring-1 ring-primary/20" />
+            </div>
+
+            {/* Track Info */}
+            <div className="w-full text-center px-2">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2 line-clamp-2">
+                {currentTrack.title}
+              </h1>
+              <p className="text-base sm:text-lg text-muted-foreground line-clamp-1">
+                {currentTrack.artist ||
+                  currentTrack.albumTitle ||
+                  "Unknown Artist"}
+              </p>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full px-2">
+              <Slider
+                value={[currentTime]}
+                max={duration || 100}
+                step={0.1}
+                onValueChange={(value) => seek(value[0])}
+                className="w-full mb-2"
+              />
+              <div className="flex justify-between text-xs sm:text-sm text-muted-foreground font-mono">
+                <span>{formatTime(currentTime)}</span>
+                <span>{formatTime(duration)}</span>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-4 sm:gap-6">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={previous}
+                disabled={!hasPrevious}
+                className="h-14 w-14 hover:bg-secondary/50 hover:text-primary disabled:opacity-30 min-h-[56px] min-w-[56px]"
+              >
+                <SkipBack className="h-7 w-7" />
+              </Button>
+
+              <Button
+                size="icon"
+                onClick={isPlaying ? pause : resume}
+                className="h-20 w-20 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30 min-h-[80px] min-w-[80px]"
+              >
+                {isPlaying ? (
+                  <Pause className="h-10 w-10 fill-current" />
+                ) : (
+                  <Play className="h-10 w-10 fill-current ml-1" />
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={next}
+                disabled={!hasNext}
+                className="h-14 w-14 hover:bg-secondary/50 hover:text-primary disabled:opacity-30 min-h-[56px] min-w-[56px]"
+              >
+                <SkipForward className="h-7 w-7" />
+              </Button>
+            </div>
+
+            {/* Volume Control - Desktop only */}
+            <div className="hidden md:flex items-center gap-4 w-full max-w-xs">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleMute}
+                className="hover:bg-secondary/50 hover:text-primary transition-all min-h-[44px] min-w-[44px]"
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="h-5 w-5" />
+                ) : (
+                  <Volume2 className="h-5 w-5" />
+                )}
+              </Button>
+              <Slider
+                value={[volume]}
+                max={1}
+                step={0.01}
+                onValueChange={(value) => setVolume(value[0])}
+                className="flex-1"
               />
             </div>
-            <div className="absolute inset-0 rounded-2xl ring-1 ring-primary/20 shadow-[0_0_80px_-20px] shadow-primary/30" />
-          </div>
-
-          {/* Track Info */}
-          <div className="w-full text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
-              {currentTrack.title}
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              {currentTrack.artist ||
-                currentTrack.albumTitle ||
-                "Unknown Artist"}
-            </p>
-          </div>
-
-          {/* Progress Bar - Removed decorative bars */}
-          <div className="w-full mb-8">
-            <Slider
-              value={[currentTime]}
-              max={duration || 100}
-              step={0.1}
-              onValueChange={(value) => seek(value[0])}
-              className="w-full mb-2"
-            />
-            <div className="flex justify-between text-sm text-muted-foreground font-mono">
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-          </div>
-
-          {/* Controls - Larger touch targets */}
-          <div className="flex items-center gap-4 md:gap-8 mb-8">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={previous}
-              disabled={!hasPrevious}
-              className="h-14 w-14 hover:bg-secondary/50 hover:text-primary transition-all hover:scale-110 active:scale-95 disabled:opacity-30"
-            >
-              <SkipBack className="h-7 w-7" />
-            </Button>
-
-            <Button
-              size="icon"
-              onClick={isPlaying ? pause : resume}
-              className="h-20 w-20 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 transition-all hover:scale-105 active:scale-95"
-            >
-              {isPlaying ? (
-                <Pause className="h-10 w-10 fill-current" />
-              ) : (
-                <Play className="h-10 w-10 fill-current ml-1" />
-              )}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={next}
-              disabled={!hasNext}
-              className="h-14 w-14 hover:bg-secondary/50 hover:text-primary transition-all hover:scale-110 active:scale-95 disabled:opacity-30"
-            >
-              <SkipForward className="h-7 w-7" />
-            </Button>
-          </div>
-
-          {/* Volume Control - Hidden on mobile */}
-          <div className="hidden md:flex items-center gap-4 w-full max-w-xs">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleMute}
-              className="hover:bg-secondary/50 hover:text-primary transition-all min-h-[44px] min-w-[44px]"
-            >
-              {isMuted || volume === 0 ? (
-                <VolumeX className="h-5 w-5" />
-              ) : (
-                <Volume2 className="h-5 w-5" />
-              )}
-            </Button>
-            <Slider
-              value={[volume]}
-              max={1}
-              step={0.01}
-              onValueChange={(value) => setVolume(value[0])}
-              className="flex-1"
-            />
           </div>
         </div>
       ) : (
         /* Queue View */
-        <div className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="flex-1 overflow-y-auto px-4 py-4 pb-safe">
           <div className="max-w-2xl mx-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-lg sm:text-xl font-semibold">
                 Up Next {fullQueue.length > 0 && `(${fullQueue.length})`}
               </h2>
               {fullQueue.length > 0 && (
@@ -432,7 +446,7 @@ export function ExpandedAudioPlayer({
                   variant="ghost"
                   size="sm"
                   onClick={clearQueue}
-                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 min-h-[44px]"
+                  className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 min-h-[44px] px-4"
                 >
                   Clear All
                 </Button>
@@ -440,14 +454,14 @@ export function ExpandedAudioPlayer({
             </div>
 
             {fullQueue.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-16 h-16 rounded-full bg-secondary/30 flex items-center justify-center mb-4">
                   <ListMusic className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <p className="text-lg font-medium text-foreground/90">
+                <p className="text-base sm:text-lg font-medium text-foreground/90">
                   Nothing up next
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-sm text-muted-foreground mt-1 px-4">
                   Start playing an album to see what's next
                 </p>
               </div>
