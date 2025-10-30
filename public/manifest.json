@@ -1,6 +1,6 @@
 {
-  "name": "Titled - Your Music Library",
-  "short_name": "Titled",
+  "name": "SideC - Your Music Library",
+  "short_name": "SideC",
   "description": "Create and share your music collection",
   "start_url": "/",
   "display": "standalone",
