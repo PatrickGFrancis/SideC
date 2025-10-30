@@ -13,7 +13,7 @@ export const revalidate = 0;
 // Loading skeleton for albums
 function AlbumsSkeleton() {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6 px-4 sm:px-0">
       {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="space-y-3">
           <Skeleton className="aspect-square rounded-xl" />
@@ -49,10 +49,10 @@ async function AlbumsList() {
 
   if (allAlbums.length === 0) {
     return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center text-center">
-        <div className="rounded-2xl bg-card/50 border border-border/50 p-12 max-w-md">
-          <h2 className="text-2xl font-semibold mb-2">No albums yet</h2>
-          <p className="text-muted-foreground mb-6">
+      <div className="flex min-h-[400px] flex-col items-center justify-center text-center px-4">
+        <div className="rounded-2xl bg-card/50 border border-border/50 p-8 sm:p-12 max-w-md w-full">
+          <h2 className="text-xl sm:text-2xl font-semibold mb-2">No albums yet</h2>
+          <p className="text-sm sm:text-base text-muted-foreground mb-6">
             Create your first album to get started
           </p>
           <QuickCreateAlbum />
@@ -62,7 +62,7 @@ async function AlbumsList() {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
       {allAlbums.map((album) => (
         <AlbumCard key={album.id} album={album} />
       ))}
@@ -73,19 +73,19 @@ async function AlbumsList() {
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
-      {/* Header with logo */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
+      {/* Header - Fixed with proper safe area */}
+      <header className="border-b border-border/50 bg-card backdrop-blur-sm sticky top-0 z-10 pt-safe">
+        <div className="container mx-auto px-4 py-4 sm:py-6">
+          <div className="flex items-center justify-between gap-2">
             <Image
               src="/logo.png"
               alt="SideC"
-              width={150}
-              height={50}
-              className="h-15 w-auto"
+              width={120}
+              height={40}
+              className="h-8 sm:h-10 w-auto"
               priority
             />
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               <ThemeToggle />
               <QuickCreateAlbum />
               <UserMenu />
@@ -94,7 +94,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 pb-player-safe mb-32">
+      <main className="container mx-auto px-4 py-6 sm:py-8 pb-32 mb-safe">
         <Suspense fallback={<AlbumsSkeleton />}>
           <AlbumsList />
         </Suspense>

@@ -5,73 +5,54 @@
 
 :root {
   /* Light Theme */
-  --background: 0 0% 100%; /* White */
-  --foreground: 222 47% 11%; /* Near black */
-
-  --card: 0 0% 98%; /* Light gray */
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 98%;
   --card-foreground: 222 47% 11%;
-
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-
-  --primary: 84 81% 44%; /* Lime green */
-  --primary-foreground: 0 0% 0%; /* Black text on lime */
-
-  --secondary: 214 32% 91%; /* Light blue-gray */
+  --primary: 84 81% 44%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 214 32% 91%;
   --secondary-foreground: 222 47% 11%;
-
   --muted: 214 32% 91%;
-  --muted-foreground: 215 16% 47%; /* Medium gray */
-
-  --accent: 84 81% 44%; /* Lime green accent */
+  --muted-foreground: 215 16% 47%;
+  --accent: 84 81% 44%;
   --accent-foreground: 0 0% 0%;
-
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 20% 98%;
-
   --border: 214 32% 91%;
   --input: 214 32% 91%;
-  --ring: 84 81% 44%; /* Lime green ring */
-
+  --ring: 84 81% 44%;
   --chart-1: 84 81% 44%;
   --chart-2: 142 76% 36%;
   --chart-3: 47 96% 53%;
   --chart-4: 217 91% 60%;
   --chart-5: 0 84% 60%;
-
   --radius: 0.75rem;
 }
 
 .dark {
   /* Dark Theme */
-  --background: 215 28% 8%; /* Deep blue-black */
-  --foreground: 210 20% 98%; /* Off-white */
-
-  --card: 217 25% 11%; /* Slightly lighter than bg */
+  --background: 215 28% 8%;
+  --foreground: 210 20% 98%;
+  --card: 217 25% 11%;
   --card-foreground: 210 20% 98%;
-
   --popover: 217 25% 13%;
   --popover-foreground: 210 20% 98%;
-
-  --primary: 84 81% 44%; /* Lime green */
-  --primary-foreground: 0 0% 0%; /* Black text on lime */
-
-  --secondary: 217 25% 16%; /* Subtle gray-blue */
+  --primary: 84 81% 44%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 217 25% 16%;
   --secondary-foreground: 210 20% 98%;
-
   --muted: 217 20% 20%;
-  --muted-foreground: 215 16% 65%; /* Medium gray */
-
-  --accent: 84 81% 44%; /* Lime green accent */
+  --muted-foreground: 215 16% 65%;
+  --accent: 84 81% 44%;
   --accent-foreground: 0 0% 0%;
-
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 20% 98%;
-
   --border: 217 20% 18%;
   --input: 217 20% 18%;
-  --ring: 84 81% 44%; /* Lime green ring */
-
+  --ring: 84 81% 44%;
   --chart-1: 84 81% 44%;
   --chart-2: 142 76% 36%;
   --chart-3: 47 96% 53%;
@@ -115,11 +96,24 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    overscroll-behavior: none; /* Prevent iOS bounce */
+    overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
   }
   
-  /* Safe area padding for bottom player */
+  /* Safe area padding for notches */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Bottom player safe area */
   .pb-player-safe {
     padding-bottom: calc(5rem + env(safe-area-inset-bottom));
   }
@@ -136,7 +130,7 @@
     );
   }
 
-  /* Glow effect for interactive elements */
+  /* Glow effect for interactive elements - works on tap too */
   .glow-primary {
     box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
   }
@@ -147,8 +141,16 @@
 
   /* Smooth glass morphism effect */
   .glass {
-    background: hsl(var(--card) / 0.6);
+    background: hsl(var(--card) / 0.8);
     backdrop-filter: blur(12px);
     border: 1px solid hsl(var(--border) / 0.5);
+  }
+  
+  /* Active state for mobile (replaces hover) */
+  @media (hover: none) {
+    button:active {
+      transform: scale(0.95);
+      transition: transform 0.1s ease;
+    }
   }
 }
