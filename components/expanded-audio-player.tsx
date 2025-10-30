@@ -319,18 +319,18 @@ export function ExpandedAudioPlayer({
       {activeTab === "player" ? (
         /* Now Playing View */
         <div className="flex-1 flex flex-col items-center justify-start px-8 pt-8 pb-12 max-w-2xl mx-auto w-full overflow-y-auto">
-          <div className="relative w-full max-w-xs mx-auto mb-8 rounded-2xl overflow-hidden shadow-2xl group">
+          {/* Album Cover - Fixed to show full square image */}
+          <div className="relative w-full max-w-[280px] sm:max-w-xs mx-auto mb-8 rounded-2xl overflow-hidden shadow-2xl group">
             <div className="aspect-square w-full">
               <img
                 src={currentTrack.coverUrl || "/placeholder.svg"}
                 alt={currentTrack.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain bg-secondary/20"
                 onError={(e) => {
                   e.currentTarget.src = "/placeholder.svg";
                 }}
               />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-background/20 via-transparent to-transparent" />
             <div className="absolute inset-0 rounded-2xl ring-1 ring-primary/20 shadow-[0_0_80px_-20px] shadow-primary/30" />
           </div>
 
@@ -346,27 +346,15 @@ export function ExpandedAudioPlayer({
             </p>
           </div>
 
-          {/* Progress Bar */}
+          {/* Progress Bar - Removed decorative bars */}
           <div className="w-full mb-8">
-            <div className="relative mb-2">
-              <Slider
-                value={[currentTime]}
-                max={duration || 100}
-                step={0.1}
-                onValueChange={(value) => seek(value[0])}
-                className="w-full"
-              />
-              <div className="absolute inset-0 pointer-events-none flex items-center">
-                <div className="h-1 w-full bg-secondary/30 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-primary via-accent to-primary transition-all duration-100"
-                    style={{
-                      width: `${(currentTime / (duration || 1)) * 100}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
+            <Slider
+              value={[currentTime]}
+              max={duration || 100}
+              step={0.1}
+              onValueChange={(value) => seek(value[0])}
+              className="w-full mb-2"
+            />
             <div className="flex justify-between text-sm text-muted-foreground font-mono">
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
@@ -408,7 +396,7 @@ export function ExpandedAudioPlayer({
             </Button>
           </div>
 
-          {/* Volume Control */}
+          {/* Volume Control - Removed decorative bar */}
           <div className="flex items-center gap-4 w-full max-w-xs">
             <Button
               variant="ghost"
@@ -422,23 +410,13 @@ export function ExpandedAudioPlayer({
                 <Volume2 className="h-5 w-5" />
               )}
             </Button>
-            <div className="flex-1 relative">
-              <Slider
-                value={[volume]}
-                max={1}
-                step={0.01}
-                onValueChange={(value) => setVolume(value[0])}
-                className="flex-1"
-              />
-              <div className="absolute inset-0 pointer-events-none flex items-center">
-                <div className="h-1 w-full bg-secondary/30 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-muted-foreground to-primary transition-all duration-100"
-                    style={{ width: `${volume * 100}%` }}
-                  />
-                </div>
-              </div>
-            </div>
+            <Slider
+              value={[volume]}
+              max={1}
+              step={0.01}
+              onValueChange={(value) => setVolume(value[0])}
+              className="flex-1"
+            />
           </div>
         </div>
       ) : (
