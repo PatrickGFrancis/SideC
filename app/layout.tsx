@@ -12,10 +12,15 @@ export const metadata: Metadata = {
   title: "Titled - Your Music Library",
   description: "Your personal music streaming app",
   generator: "v0.app",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Titled",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/icon-192.png",
   },
 };
 

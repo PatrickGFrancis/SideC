@@ -73,14 +73,28 @@ export default async function ShareAlbumPage({ params }: PageProps) {
   }
 
   // Sort tracks by order
-  const sortedTracks = album.tracks?.sort((a: any, b: any) => a.order - b.order) || [];
+  const sortedTracks = album.tracks?.sort((a: any, b: any) => a.track_number - b.track_number) || [];
+
+  // Map tracks to ensure correct audio URL format
+  const tracksWithAudio = sortedTracks.map((track: any) => ({
+    ...track,
+    audioUrl: track.playback_url || track.audio_url,
+    playbackUrl: track.playback_url || track.audio_url,
+  }));
 
   // Calculate total duration
-  const totalDuration = sortedTracks.reduce((sum: number, track: any) => {
+  const totalDuration = tracksWithAudio.reduce((sum: number, track: any) => {
     return sum + (typeof track.duration === "number" ? track.duration : 0);
   }, 0);
 
   const totalDurationText = formatTotalDuration(totalDuration);
+
+  // Debug log
+  console.log("Guest tracks:", tracksWithAudio.map((t: any) => ({
+    title: t.title,
+    audioUrl: t.audioUrl,
+    playbackUrl: t.playbackUrl,
+  })));
 
   return (
     <div className="min-h-screen bg-background">
@@ -143,8 +157,8 @@ export default async function ShareAlbumPage({ params }: PageProps) {
                     <div className="flex items-center gap-2">
                       <Music className="h-4 w-4" />
                       <span>
-                        {sortedTracks.length}{" "}
-                        {sortedTracks.length === 1 ? "track" : "tracks"}
+                        {tracksWithAudio.length}{" "}
+                        {tracksWithAudio.length === 1 ? "track" : "tracks"}
                       </span>
                     </div>
                     {totalDurationText && (
@@ -173,7 +187,7 @@ export default async function ShareAlbumPage({ params }: PageProps) {
 
       {/* Main content area */}
       <main className="container mx-auto px-4 py-8 pb-32">
-        {sortedTracks.length === 0 ? (
+        {tracksWithAudio.length === 0 ? (
           <div className="flex min-h-[300px] items-center justify-center">
             <div className="text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-secondary/30 flex items-center justify-center mx-auto">
@@ -186,7 +200,7 @@ export default async function ShareAlbumPage({ params }: PageProps) {
           </div>
         ) : (
           <AudioPlayer
-            tracks={sortedTracks}
+            tracks={tracksWithAudio}
             albumTitle={album.title}
             albumId={id}
             coverUrl={album.cover_url}

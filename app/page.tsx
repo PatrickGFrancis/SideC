@@ -5,6 +5,7 @@ import { AlbumCard } from "@/components/album-card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -72,13 +73,18 @@ async function AlbumsList() {
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
-      {/* Header with subtle border */}
+      {/* Header with logo */}
       <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <h1 className="font-sans text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              My Music
-            </h1>
+            <Image
+              src="/logo.png"
+              alt="SideC"
+              width={150}
+              height={50}
+              className="h-15 w-auto"
+              priority
+            />
             <div className="flex items-center gap-4">
               <ThemeToggle />
               <QuickCreateAlbum />
