@@ -99,20 +99,20 @@
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
   }
-  
+
   /* Safe area padding for notches */
   .pt-safe {
     padding-top: env(safe-area-inset-top);
   }
-  
+
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
-  
+
   .mb-safe {
     margin-bottom: env(safe-area-inset-bottom);
   }
-  
+
   /* Bottom player safe area */
   .pb-player-safe {
     padding-bottom: calc(5rem + env(safe-area-inset-bottom));
@@ -145,7 +145,7 @@
     backdrop-filter: blur(12px);
     border: 1px solid hsl(var(--border) / 0.5);
   }
-  
+
   /* Active state for mobile (replaces hover) */
   @media (hover: none) {
     button:active:not(:disabled) {
@@ -155,27 +155,19 @@
   }
 }
 
-/* Page Transitions */
+/* Page Transitions - Subtle slide */
 .page-transition {
-  animation: fadeSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: smoothSlide 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
-.page-transition-exit {
-  animation: fadeSlideOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-
-.page-transition-enter {
-  animation: fadeSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes fadeSlideIn {
+@keyframes smoothSlide {
   from {
     opacity: 0;
-    transform: translateX(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
@@ -212,8 +204,8 @@
 
 /* Smooth link transitions */
 a {
-  transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
-              opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Image fade in */
