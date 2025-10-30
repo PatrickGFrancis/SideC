@@ -99,17 +99,17 @@ export function AlbumCard({ album }: AlbumCardProps) {
   };
 
   return (
-    <div className="group cursor-pointer relative">
+    <div className="group cursor-pointer relative album-card-hover">
       <Link href={`/album/${album.id}`} prefetch={true}>
         <div className="space-y-3">
           {/* Album Cover */}
-          <div className="relative aspect-square overflow-hidden rounded-xl bg-secondary/30 shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-primary/20 group-hover:scale-[1.03]">
+          <div className="relative aspect-square overflow-hidden rounded-xl bg-secondary/30 shadow-lg transition-all duration-300 md:group-hover:shadow-2xl md:group-hover:shadow-primary/20">
             <Image
               src={album.coverUrl || '/placeholder.svg'}
               alt={album.title}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-110"
+              className="object-cover transition-transform duration-300 md:group-hover:scale-110"
               priority={false}
               loading="lazy"
             />
@@ -122,16 +122,16 @@ export function AlbumCard({ album }: AlbumCardProps) {
               </div>
             )}
 
-            {/* Gradient overlay on hover */}
-            <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            {/* Gradient overlay on hover - desktop only */}
+            <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 md:group-hover:opacity-100 transition-opacity duration-300" />
             
             {/* Subtle border glow */}
-            <div className="absolute inset-0 rounded-xl ring-1 ring-border/50 group-hover:ring-primary/30 transition-all duration-300" />
+            <div className="absolute inset-0 rounded-xl ring-1 ring-border/50 md:group-hover:ring-primary/30 transition-all duration-300" />
           </div>
 
           {/* Album Info */}
           <div className="space-y-1 px-1">
-            <h3 className="font-semibold truncate text-foreground group-hover:text-primary transition-colors duration-200">
+            <h3 className="font-semibold truncate text-foreground md:group-hover:text-primary transition-colors duration-200">
               {album.title}
             </h3>
             <p className="text-sm text-muted-foreground truncate">
@@ -141,14 +141,14 @@ export function AlbumCard({ album }: AlbumCardProps) {
         </div>
       </Link>
 
-      {/* Three-dot menu */}
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+      {/* Three-dot menu - always visible on mobile, hover on desktop */}
+      <div className="absolute top-2 right-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200">
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button
               variant="secondary"
               size="icon"
-              className="h-8 w-8 rounded-full shadow-lg backdrop-blur-sm bg-card/90 hover:bg-card border border-border/50 hover:border-primary/50 transition-all"
+              className="h-9 w-9 rounded-full shadow-lg backdrop-blur-sm bg-card/90 hover:bg-card border border-border/50 hover:border-primary/50 transition-all min-h-[44px] min-w-[44px]"
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
@@ -157,7 +157,7 @@ export function AlbumCard({ album }: AlbumCardProps) {
             {album.isSaved ? (
               <DropdownMenuItem
                 onClick={handleUnsave}
-                className="focus:bg-primary/10"
+                className="focus:bg-primary/10 min-h-[44px]"
               >
                 <Bookmark className="mr-2 h-4 w-4" />
                 Remove from Library
@@ -166,7 +166,7 @@ export function AlbumCard({ album }: AlbumCardProps) {
               <DropdownMenuItem
                 onClick={handleDelete}
                 disabled={deleting}
-                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                className="text-destructive focus:text-destructive focus:bg-destructive/10 min-h-[44px]"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 {deleting ? 'Deleting...' : 'Delete Album'}

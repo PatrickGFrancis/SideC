@@ -148,9 +148,95 @@
   
   /* Active state for mobile (replaces hover) */
   @media (hover: none) {
-    button:active {
+    button:active:not(:disabled) {
       transform: scale(0.95);
       transition: transform 0.1s ease;
     }
   }
+}
+
+/* Page Transitions */
+.page-transition {
+  animation: fadeSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.page-transition-exit {
+  animation: fadeSlideOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.page-transition-enter {
+  animation: fadeSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+
+/* Smooth card animations */
+.album-card-hover {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Desktop hover effects */
+@media (hover: hover) {
+  .album-card-hover:hover {
+    transform: scale(1.02);
+  }
+}
+
+/* Mobile tap feedback */
+@media (hover: none) {
+  .album-card-hover:active {
+    transform: scale(0.98);
+    transition: transform 0.15s cubic-bezier(0.4, 0, 1, 1);
+  }
+}
+
+/* Smooth link transitions */
+a {
+  transition: color 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+              opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Image fade in */
+img {
+  animation: imageFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes imageFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
 }

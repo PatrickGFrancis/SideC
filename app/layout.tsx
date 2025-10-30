@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { AudioProvider } from "@/contexts/audio-context";
 import { OptimisticTracksProvider } from "@/contexts/optimistic-tracks-context";
 import { GlobalAudioPlayer } from "@/components/global-audio-player";
+import { PageTransition } from "@/components/page-transition";
 
 export const metadata: Metadata = {
   title: "SideC - Your Music Library",
@@ -65,7 +66,9 @@ export default function RootLayout({
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <AudioProvider>
           <OptimisticTracksProvider>
-            {children}
+            <PageTransition>
+              {children}
+            </PageTransition>
             <GlobalAudioPlayer />
             <Toaster />
           </OptimisticTracksProvider>
