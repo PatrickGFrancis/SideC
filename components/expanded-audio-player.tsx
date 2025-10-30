@@ -261,11 +261,11 @@ export function ExpandedAudioPlayer({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       className={cn(
-        "fixed inset-0 bg-background z-50 flex flex-col transition-opacity duration-200",
-        isClosing ? "opacity-0" : "opacity-100"
+        "fixed inset-0 bg-background z-50 flex flex-col",
+        isClosing ? "animate-fade-out" : "animate-fade-in"
       )}
       style={{
-        transition: dragStartY !== null ? "none" : "opacity 200ms ease-out, transform 200ms ease-out",
+        transition: dragStartY !== null ? "none" : undefined,
       }}
     >
       {/* Swipe indicator */}

@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { ArrowLeft, Music, Clock, Bookmark } from "lucide-react";
 import { getAlbumById } from "@/lib/data";
 import { TrackStatusChecker } from "@/components/track-status-checker";
@@ -12,6 +11,7 @@ import Image from "next/image";
 import { TrackDurationFetcher } from "@/components/track-duration-fetcher";
 import { AlbumPageClient } from "@/components/album-page-client";
 import { AlbumActionsMenu } from "@/components/album-actions-menu";
+import { BackButton } from "@/components/back-button";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -109,16 +109,7 @@ async function AlbumContent({ id }: { id: string }) {
       {/* Header - scrolls with page */}
       <header className="border-b border-border/50 bg-card">
         <div className="container mx-auto px-4 py-4 sm:py-6">
-          <Link href="/" prefetch={true}>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mb-3 sm:mb-4 hover:bg-secondary/50 hover:text-primary transition-colors min-h-[44px]"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Albums
-            </Button>
-          </Link>
+          <BackButton />
 
           <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-start">
             {/* Album cover */}
