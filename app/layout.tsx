@@ -9,18 +9,30 @@ import { OptimisticTracksProvider } from "@/contexts/optimistic-tracks-context";
 import { GlobalAudioPlayer } from "@/components/global-audio-player";
 
 export const metadata: Metadata = {
-  title: "Titled - Your Music Library",
-  description: "Your personal music streaming app",
+  title: "SideC - Your Music Library",
+  description: "Create and share your music collection",
   generator: "v0.app",
+  applicationName: "SideC",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Titled",
+    title: "SideC",
+    startupImage: [
+      {
+        url: "/icon-512.png",
+        media: "(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)",
+      },
+    ],
   },
   icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-192.png",
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
   },
 };
 
@@ -30,6 +42,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: "#a3e635",
 };
 
 export default function RootLayout({
@@ -40,12 +53,14 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
-        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-512.png" />
+        <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta
-          name="apple-mobile-web-app-status-bar-style"
-          content="black-translucent"
-        />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="SideC" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#a3e635" />
       </head>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <AudioProvider>
