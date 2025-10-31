@@ -47,7 +47,6 @@ interface AudioContextType {
   setVolume: (volume: number) => void;
   isMuted: boolean;
   toggleMute: () => void;
-  // Queue management - unified queue
   fullQueue: Track[];
   addToQueue: (track: Track) => void;
   removeFromQueue: (trackId: string) => void;
@@ -77,7 +76,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const previousVolumeRef = useRef(1);
 
-  // Compute full queue (manual queue + upcoming playlist tracks)
   const fullQueue = useMemo(() => {
     const upcomingPlaylistTracks = playlist
       .slice(currentIndex + 1)
@@ -85,42 +83,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     return [...queue, ...upcomingPlaylistTracks];
   }, [queue, playlist, currentIndex]);
 
-  useEffect(() => {
-    const audio = new Audio();
-    audio.preload = "auto";
-    audio.crossOrigin = "anonymous";
-    audio.volume = volume;
-    audioRef.current = audio;
-
-    const preloadAudio = new Audio();
-    preloadAudio.preload = "auto";
-    preloadAudio.crossOrigin = "anonymous";
-    preloadAudioRef.current = preloadAudio;
-
-    const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
-    const handleCanPlay = () => {
-      console.log("Audio ready to play");
-    };
-
-    audio.addEventListener("timeupdate", updateTime);
-    audio.addEventListener("loadedmetadata", updateDuration);
-    audio.addEventListener("canplay", handleCanPlay);
-
-    return () => {
-      audio.removeEventListener("timeupdate", updateTime);
-      audio.removeEventListener("loadedmetadata", updateDuration);
-      audio.removeEventListener("canplay", handleCanPlay);
-      audio.pause();
-      preloadAudio.pause();
-
-      if (playTimeoutRef.current) {
-        clearTimeout(playTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Shuffle helper
   const shuffleArray = <T,>(array: T[]): T[] => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -130,20 +92,17 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     return shuffled;
   };
 
-  // Queue management functions
   const addToQueue = useCallback((track: Track) => {
     setQueue((prev) => [...prev, track]);
   }, []);
 
   const removeFromQueue = useCallback(
     (trackId: string) => {
-      // Check if it's in the manual queue
       const inManualQueue = queue.some((t) => t.id === trackId);
 
       if (inManualQueue) {
         setQueue((prev) => prev.filter((t) => t.id !== trackId));
       } else {
-        // It's in the playlist, remove it from both playlist and original
         setPlaylist((prev) => prev.filter((t) => t.id !== trackId));
         setOriginalPlaylist((prev) => prev.filter((t) => t.id !== trackId));
       }
@@ -166,17 +125,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const [removed] = result.splice(startIndex, 1);
       result.splice(endIndex, 0, removed);
 
-      // Split back into manual queue and playlist
       const newQueue = result.slice(0, queue.length);
       const newUpcoming = result.slice(queue.length);
 
       setQueue(newQueue);
 
-      // Update playlist order for the upcoming tracks
       if (newUpcoming.length > 0) {
         const beforeCurrent = playlist.slice(0, currentIndex + 1);
         const afterReorder = [...beforeCurrent, ...newUpcoming];
-        // Add any tracks that weren't in upcoming (after the visible queue)
         const remainingTracks = playlist.slice(
           currentIndex + 1 + upcomingPlaylistTracks.length
         );
@@ -189,11 +145,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   );
 
   const playNext = useCallback((track: Track) => {
-    // Add track to the front of the queue
     setQueue((prev) => [track, ...prev]);
   }, []);
 
-  // Volume control
   const setVolume = useCallback((newVolume: number) => {
     const audio = audioRef.current;
     if (audio) {
@@ -258,262 +212,33 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     });
   }, [playlist, currentIndex, originalPlaylist]);
 
-  // Auto-preload next track (queue or playlist)
-  useEffect(() => {
-    let nextTrack: Track | null = null;
-
-    if (queue.length > 0) {
-      // If there's a queue, preload the first queued track
-      nextTrack = queue[0];
-    } else if (playlist.length > 0 && currentIndex < playlist.length - 1) {
-      // Otherwise preload next track in playlist
-      nextTrack = playlist[currentIndex + 1];
-    }
-
-    if (nextTrack && nextTrack.id !== preloadedTrackId.current) {
-      preload(nextTrack);
-    }
-  }, [currentIndex, playlist, queue]);
-
-  // Handle track ended
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleEnded = () => {
-      if (repeatMode === "one") {
-        audio.currentTime = 0;
-        audio.play();
-      } else if (queue.length > 0) {
-        // Play next track from queue
-        const nextTrack = queue[0];
-        setQueue((prev) => prev.slice(1)); // Remove from queue
-        play(nextTrack);
-      } else if (currentIndex < playlist.length - 1) {
-        // Play next track from playlist
-        next();
-      } else if (repeatMode === "all" && playlist.length > 0) {
-        const firstTrack = playlist[0];
-        setCurrentIndex(0);
-        play(firstTrack);
-      } else {
-        setIsPlaying(false);
-      }
-    };
-
-    audio.addEventListener("ended", handleEnded);
-    return () => audio.removeEventListener("ended", handleEnded);
-  }, [currentIndex, playlist, repeatMode, queue]);
-
-  const preload = useCallback((track: Track) => {
-    const preloadAudio = preloadAudioRef.current;
-    if (!preloadAudio) return;
-
-    const audioUrl = track.playbackUrl || track.audio_url;
-    if (!audioUrl || preloadedTrackId.current === track.id) return;
-
-    preloadAudio.src = audioUrl;
-    preloadAudio.load();
-    preloadedTrackId.current = track.id;
-    console.log("Preloading track:", track.title);
-  }, []);
-
-  const play = useCallback(
-    async (track: Track, newPlaylist?: Track[]) => {
-      const audio = audioRef.current;
-      if (!audio) return;
-
-      // Try playbackUrl first, fallback to audio_url
-      let audioUrl = track.playbackUrl || track.audio_url;
-
-      // On mobile, prefer direct audio_url if available
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile && track.audio_url) {
-        audioUrl = track.audio_url;
-      }
-
-      if (!audioUrl) {
-        console.error("No audio URL for track:", track.title);
-        return;
-      }
-
-      if (playTimeoutRef.current) {
-        clearTimeout(playTimeoutRef.current);
-      }
-
-      if (newPlaylist && newPlaylist.length > 0) {
-        setOriginalPlaylist(newPlaylist);
-        const playlistToUse = shuffle ? shuffleArray(newPlaylist) : newPlaylist;
-        setPlaylist(playlistToUse);
-        const index = playlistToUse.findIndex((t) => t.id === track.id);
-        setCurrentIndex(index >= 0 ? index : 0);
-      }
-
-      if (currentTrack?.id === track.id && audio.src) {
-        try {
-          await audio.play();
-          setIsPlaying(true);
-
-          // Update media session for iOS lock screen
-          updateMediaSession(track);
-        } catch (error: any) {
-          if (error.name !== "AbortError") {
-            console.error("Play error (resume):", error);
-          }
-        }
-        return;
-      }
-
-      audio.pause();
-      setIsPlaying(false);
-      audio.currentTime = 0;
-
-      const preloadAudio = preloadAudioRef.current;
-      if (
-        preloadAudio &&
-        preloadedTrackId.current === track.id &&
-        preloadAudio.src
-      ) {
-        console.log("Using preloaded audio");
-        audio.src = preloadAudio.src;
-        preloadedTrackId.current = null;
-      } else {
-        audio.src = audioUrl;
-      }
-
-      setCurrentTrack(track);
-
-      // Mobile Safari needs immediate user interaction
-      try {
-        audio.load();
-        await audio.play();
-        setIsPlaying(true);
-
-        // Update media session for iOS lock screen
-        updateMediaSession(track);
-      } catch (error: any) {
-        console.error("Immediate play failed, trying with delay:", error);
-
-        // Fallback with delay
-        playTimeoutRef.current = setTimeout(async () => {
-          try {
-            await new Promise<void>((resolve, reject) => {
-              const handleCanPlay = () => {
-                audio.removeEventListener("canplay", handleCanPlay);
-                audio.removeEventListener("error", handleError);
-                resolve();
-              };
-
-              const handleError = (e: Event) => {
-                audio.removeEventListener("canplay", handleCanPlay);
-                audio.removeEventListener("error", handleError);
-                reject(e);
-              };
-
-              audio.addEventListener("canplay", handleCanPlay, { once: true });
-              audio.addEventListener("error", handleError, { once: true });
-              audio.load();
-            });
-
-            await audio.play();
-            setIsPlaying(true);
-
-            // Update media session for iOS lock screen
-            updateMediaSession(track);
-          } catch (error: any) {
-            if (
-              error.name !== "AbortError" &&
-              !error.message?.includes("pause")
-            ) {
-              console.error("Play error (delayed):", error);
-            }
-            setIsPlaying(false);
-          }
-        }, 50);
-      }
-    },
-    [currentTrack, shuffle]
-  );
-
-  // Add this helper function before the play function
-  const updateMediaSession = (track: Track) => {
+  // Update media session metadata
+  const updateMediaSession = useCallback((track: Track) => {
     if ("mediaSession" in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title,
         artist: track.artist || track.albumTitle || "Unknown Artist",
         album: track.albumTitle || "SideC",
         artwork: [
-          {
-            src: track.coverUrl || "/icon-512.png",
-            sizes: "96x96",
-            type: "image/png",
-          },
-          {
-            src: track.coverUrl || "/icon-512.png",
-            sizes: "128x128",
-            type: "image/png",
-          },
-          {
-            src: track.coverUrl || "/icon-512.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: track.coverUrl || "/icon-512.png",
-            sizes: "256x256",
-            type: "image/png",
-          },
-          {
-            src: track.coverUrl || "/icon-512.png",
-            sizes: "384x384",
-            type: "image/png",
-          },
-          {
-            src: track.coverUrl || "/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
+          { src: track.coverUrl || "/icon-512.png", sizes: "96x96", type: "image/png" },
+          { src: track.coverUrl || "/icon-512.png", sizes: "128x128", type: "image/png" },
+          { src: track.coverUrl || "/icon-512.png", sizes: "192x192", type: "image/png" },
+          { src: track.coverUrl || "/icon-512.png", sizes: "256x256", type: "image/png" },
+          { src: track.coverUrl || "/icon-512.png", sizes: "384x384", type: "image/png" },
+          { src: track.coverUrl || "/icon-512.png", sizes: "512x512", type: "image/png" },
         ],
       });
-
-      // Set up action handlers for lock screen controls
-      navigator.mediaSession.setActionHandler("play", () => {
-        resume();
-      });
-
-      navigator.mediaSession.setActionHandler("pause", () => {
-        pause();
-      });
-
-      navigator.mediaSession.setActionHandler("previoustrack", () => {
-        if (hasPrevious) previous();
-      });
-
-      navigator.mediaSession.setActionHandler("nexttrack", () => {
-        if (hasNext) next();
-      });
-
-      navigator.mediaSession.setActionHandler("seekbackward", () => {
-        const audio = audioRef.current;
-        if (audio) {
-          audio.currentTime = Math.max(0, audio.currentTime - 10);
-        }
-      });
-
-      navigator.mediaSession.setActionHandler("seekforward", () => {
-        const audio = audioRef.current;
-        if (audio) {
-          audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
-        }
-      });
+      navigator.mediaSession.playbackState = "playing";
     }
-  };
+  }, []);
 
   const pause = useCallback(() => {
-    audioRef.current?.pause();
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+    }
     setIsPlaying(false);
 
-    // Update media session playback state
     if ("mediaSession" in navigator) {
       navigator.mediaSession.playbackState = "paused";
     }
@@ -528,7 +253,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       .then(() => {
         setIsPlaying(true);
 
-        // Update media session playback state
         if ("mediaSession" in navigator) {
           navigator.mediaSession.playbackState = "playing";
         }
@@ -546,15 +270,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Check queue first
     if (queue.length > 0) {
       const nextTrack = queue[0];
-      setQueue((prev) => prev.slice(1)); // Remove from queue
+      setQueue((prev) => prev.slice(1));
       play(nextTrack);
       return;
     }
 
-    // Find next non-processing track in playlist
     let nextIndex = currentIndex + 1;
     while (nextIndex < playlist.length) {
       const nextTrack = playlist[nextIndex];
@@ -566,7 +288,6 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       nextIndex++;
     }
 
-    // If repeat all is on and we're at the end, loop back
     if (repeatMode === "all" && playlist.length > 0) {
       const firstPlayableTrack = playlist.find((t) => !t.processing);
       if (firstPlayableTrack) {
@@ -577,9 +298,8 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // If we can't find anything, stop playing
     setIsPlaying(false);
-  }, [currentIndex, playlist, play, repeatMode, queue]);
+  }, [currentIndex, playlist, repeatMode, queue]);
 
   const previous = useCallback(() => {
     if (repeatMode === "one") {
@@ -619,7 +339,245 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [currentIndex, playlist, play, repeatMode]);
+  }, [currentIndex, playlist, repeatMode]);
+
+  // Set up media session handlers once
+  useEffect(() => {
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.setActionHandler("play", () => {
+        resume();
+      });
+
+      navigator.mediaSession.setActionHandler("pause", () => {
+        pause();
+      });
+
+      navigator.mediaSession.setActionHandler("previoustrack", () => {
+        previous();
+      });
+
+      navigator.mediaSession.setActionHandler("nexttrack", () => {
+        next();
+      });
+
+      navigator.mediaSession.setActionHandler("seekto", (details) => {
+        const audio = audioRef.current;
+        if (audio && details.seekTime !== null && details.seekTime !== undefined) {
+          audio.currentTime = details.seekTime;
+        }
+      });
+    }
+  }, [pause, resume, previous, next]);
+
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.crossOrigin = "anonymous";
+    audio.volume = volume;
+    audioRef.current = audio;
+
+    const preloadAudio = new Audio();
+    preloadAudio.preload = "auto";
+    preloadAudio.crossOrigin = "anonymous";
+    preloadAudioRef.current = preloadAudio;
+
+    const updateTime = () => {
+      setCurrentTime(audio.currentTime);
+
+      if ("mediaSession" in navigator && audio.duration) {
+        navigator.mediaSession.setPositionState({
+          duration: audio.duration,
+          playbackRate: audio.playbackRate,
+          position: audio.currentTime,
+        });
+      }
+    };
+
+    const updateDuration = () => setDuration(audio.duration);
+    const handleCanPlay = () => {
+      console.log("Audio ready to play");
+    };
+
+    audio.addEventListener("timeupdate", updateTime);
+    audio.addEventListener("loadedmetadata", updateDuration);
+    audio.addEventListener("canplay", handleCanPlay);
+
+    return () => {
+      audio.removeEventListener("timeupdate", updateTime);
+      audio.removeEventListener("loadedmetadata", updateDuration);
+      audio.removeEventListener("canplay", handleCanPlay);
+      audio.pause();
+      audio.src = ""; // Clear source
+      preloadAudio.pause();
+      preloadAudio.src = ""; // Clear source
+
+      if (playTimeoutRef.current) {
+        clearTimeout(playTimeoutRef.current);
+      }
+    };
+  }, [volume]);
+
+  useEffect(() => {
+    let nextTrack: Track | null = null;
+
+    if (queue.length > 0) {
+      nextTrack = queue[0];
+    } else if (playlist.length > 0 && currentIndex < playlist.length - 1) {
+      nextTrack = playlist[currentIndex + 1];
+    }
+
+    if (nextTrack && nextTrack.id !== preloadedTrackId.current) {
+      preload(nextTrack);
+    }
+  }, [currentIndex, playlist, queue]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleEnded = () => {
+      if (repeatMode === "one") {
+        audio.currentTime = 0;
+        audio.play();
+      } else if (queue.length > 0) {
+        const nextTrack = queue[0];
+        setQueue((prev) => prev.slice(1));
+        play(nextTrack);
+      } else if (currentIndex < playlist.length - 1) {
+        next();
+      } else if (repeatMode === "all" && playlist.length > 0) {
+        const firstTrack = playlist[0];
+        setCurrentIndex(0);
+        play(firstTrack);
+      } else {
+        setIsPlaying(false);
+      }
+    };
+
+    audio.addEventListener("ended", handleEnded);
+    return () => audio.removeEventListener("ended", handleEnded);
+  }, [currentIndex, playlist, repeatMode, queue, next]);
+
+  const preload = useCallback((track: Track) => {
+    const preloadAudio = preloadAudioRef.current;
+    if (!preloadAudio) return;
+
+    const audioUrl = track.playbackUrl || track.audio_url;
+    if (!audioUrl || preloadedTrackId.current === track.id) return;
+
+    preloadAudio.src = audioUrl;
+    preloadAudio.load();
+    preloadedTrackId.current = track.id;
+    console.log("Preloading track:", track.title);
+  }, []);
+
+  const play = useCallback(
+    async (track: Track, newPlaylist?: Track[]) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      let audioUrl = track.playbackUrl || track.audio_url;
+
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile && track.audio_url) {
+        audioUrl = track.audio_url;
+      }
+
+      if (!audioUrl) {
+        console.error("No audio URL for track:", track.title);
+        return;
+      }
+
+      if (playTimeoutRef.current) {
+        clearTimeout(playTimeoutRef.current);
+      }
+
+      if (newPlaylist && newPlaylist.length > 0) {
+        setOriginalPlaylist(newPlaylist);
+        const playlistToUse = shuffle ? shuffleArray(newPlaylist) : newPlaylist;
+        setPlaylist(playlistToUse);
+        const index = playlistToUse.findIndex((t) => t.id === track.id);
+        setCurrentIndex(index >= 0 ? index : 0);
+      }
+
+      if (currentTrack?.id === track.id && audio.src) {
+        try {
+          await audio.play();
+          setIsPlaying(true);
+          updateMediaSession(track);
+        } catch (error: any) {
+          if (error.name !== "AbortError") {
+            console.error("Play error (resume):", error);
+          }
+        }
+        return;
+      }
+
+      // CRITICAL: Stop and clear previous audio completely
+      audio.pause();
+      audio.currentTime = 0;
+      setIsPlaying(false);
+
+      const preloadAudio = preloadAudioRef.current;
+      if (
+        preloadAudio &&
+        preloadedTrackId.current === track.id &&
+        preloadAudio.src
+      ) {
+        console.log("Using preloaded audio");
+        audio.src = preloadAudio.src;
+        preloadedTrackId.current = null;
+      } else {
+        audio.src = audioUrl;
+      }
+
+      setCurrentTrack(track);
+
+      try {
+        audio.load();
+        await audio.play();
+        setIsPlaying(true);
+        updateMediaSession(track);
+      } catch (error: any) {
+        console.error("Immediate play failed, trying with delay:", error);
+
+        playTimeoutRef.current = setTimeout(async () => {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const handleCanPlay = () => {
+                audio.removeEventListener("canplay", handleCanPlay);
+                audio.removeEventListener("error", handleError);
+                resolve();
+              };
+
+              const handleError = (e: Event) => {
+                audio.removeEventListener("canplay", handleCanPlay);
+                audio.removeEventListener("error", handleError);
+                reject(e);
+              };
+
+              audio.addEventListener("canplay", handleCanPlay, { once: true });
+              audio.addEventListener("error", handleError, { once: true });
+              audio.load();
+            });
+
+            await audio.play();
+            setIsPlaying(true);
+            updateMediaSession(track);
+          } catch (error: any) {
+            if (
+              error.name !== "AbortError" &&
+              !error.message?.includes("pause")
+            ) {
+              console.error("Play error (delayed):", error);
+            }
+            setIsPlaying(false);
+          }
+        }, 50);
+      }
+    },
+    [currentTrack, shuffle, updateMediaSession]
+  );
 
   const seek = useCallback((time: number) => {
     if (audioRef.current) {
