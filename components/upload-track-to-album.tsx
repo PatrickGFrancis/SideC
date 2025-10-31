@@ -48,6 +48,7 @@ export function UploadTrackToAlbum({
 
   const [uploadStage, setUploadStage] = useState<UploadStage>("preparing");
   const [isIAConnected, setIsIAConnected] = useState(false);
+  const [checkingCredentials, setCheckingCredentials] = useState(true);
   const [iaCredentials, setIaCredentials] = useState<{
     username: string;
     password: string;
@@ -59,6 +60,7 @@ export function UploadTrackToAlbum({
 
   useEffect(() => {
     const checkCredentials = async () => {
+      setCheckingCredentials(true);
       try {
         const response = await fetch("/api/ia-credentials");
         const data = await response.json();
@@ -71,10 +73,14 @@ export function UploadTrackToAlbum({
         }
       } catch (error) {
         setIsIAConnected(false);
+      } finally {
+        setCheckingCredentials(false);
       }
     };
 
-    checkCredentials();
+    if (open) {
+      checkCredentials();
+    }
   }, [open]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,6 +89,12 @@ export function UploadTrackToAlbum({
       setFile(selectedFile);
       const nameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, "");
       setTitle(nameWithoutExt);
+      
+      // Show immediate feedback on mobile
+      toast({
+        title: "File selected",
+        description: `${selectedFile.name} ready to upload`,
+      });
     }
   };
 
@@ -136,14 +148,12 @@ export function UploadTrackToAlbum({
 
           console.log("✅ Got CDN URL in background:", cdnUrl);
 
-          // Update the track in database with CDN URL
           await fetch(`/api/tracks/${trackId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ playbackUrl: cdnUrl }),
           });
 
-          // Refresh to show updated track
           router.refresh();
 
           console.log("✅ Track updated with CDN URL!");
@@ -153,7 +163,6 @@ export function UploadTrackToAlbum({
         console.warn(`Background check ${attempts} failed:`, e);
       }
 
-      // Safety: stop after 5 minutes (100 attempts)
       if (attempts >= 100) {
         console.warn("⚠️ Stopped polling after 5 minutes");
         break;
@@ -165,27 +174,31 @@ export function UploadTrackToAlbum({
     console.log("🚀 Upload started!");
     if (!file || !isIAConnected || !iaCredentials) return;
 
+    const optimisticTrackId = `temp-${Date.now()}`;
+
+    // Show immediate toast feedback
+    toast({
+      title: "Upload started",
+      description: `Uploading ${title || file.name}...`,
+    });
+
+    // Add optimistic track IMMEDIATELY (before any async operations)
+    addOptimisticTrack({
+      id: optimisticTrackId,
+      title: title || file.name,
+      artist: artist || "Unknown Artist",
+      order: 999,
+      albumId: albumId,
+      isUploading: true,
+      uploadProgress: 0,
+    });
+
     setUploading(true);
     setUploadProgress(0);
     setUploadStage("preparing");
 
-    // Close dialog immediately after upload starts
+    // Close dialog after adding optimistic track
     setOpen(false);
-
-    const optimisticTrackId = `temp-${Date.now()}`;
-
-    // Add optimistic track almost immediately (small delay for dialog close)
-    setTimeout(() => {
-      addOptimisticTrack({
-        id: optimisticTrackId,
-        title: title || file.name,
-        artist: artist || "Unknown Artist",
-        order: 999,
-        albumId: albumId,
-        isUploading: true,
-        uploadProgress: 0,
-      });
-    }, 100);
 
     const updateProgress = (progress: number) => {
       setUploadProgress(progress);
@@ -193,10 +206,9 @@ export function UploadTrackToAlbum({
     };
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 300));
       setUploadStage("uploading");
 
-      // Step 1: Get signed upload URL from our API (no file sent)
+      // Step 1: Get signed upload URL
       const signedUrlResponse = await fetch("/api/generate-ia-upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -214,7 +226,7 @@ export function UploadTrackToAlbum({
         throw new Error(signedData.error || "Failed to get upload URL");
       }
 
-      // Step 2: Upload file directly to IA using XMLHttpRequest for progress tracking
+      // Step 2: Upload file directly to IA
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
 
@@ -239,7 +251,6 @@ export function UploadTrackToAlbum({
 
         xhr.open("PUT", signedData.uploadUrl);
 
-        // Set all headers from the server (Date is not included to avoid browser blocking)
         Object.entries(signedData.headers).forEach(([key, value]) => {
           xhr.setRequestHeader(key, value as string);
         });
@@ -278,11 +289,11 @@ export function UploadTrackToAlbum({
 
       setUploadStage("saving");
 
-      // Save track immediately with download URL
+      // Save track with download URL
       const trackData = {
         title: title || file.name,
         artist: artist || "Unknown Artist",
-        playbackUrl: signedData.playbackUrl, // Use download URL for now
+        playbackUrl: signedData.playbackUrl,
         iaDetailsUrl: signedData.iaDetailsUrl,
         fileName: file.name,
         duration: fetchedDuration,
@@ -300,6 +311,14 @@ export function UploadTrackToAlbum({
         const newTrackId = result.track.id;
 
         setUploadStage("complete");
+        
+        // Show success toast
+        toast({
+          title: "Upload complete! 🎵",
+          description: `${title || file.name} has been added to your album`,
+        });
+
+        // Reset form
         setFile(null);
         setTitle("");
         setArtist("");
@@ -307,22 +326,20 @@ export function UploadTrackToAlbum({
         setUploadStage("preparing");
         setUploading(false);
 
-        // Remove optimistic track before refresh
+        // Remove optimistic track
         removeOptimisticTrack(optimisticTrackId);
 
         // Refresh to show the real track
         router.refresh();
 
-        // Poll for CDN URL in the background
+        // Poll for CDN URL in background
         pollForCDNUrl(signedData.identifier, file.name, newTrackId);
       } else {
         throw new Error("Failed to save track");
       }
     } catch (error: any) {
       // Remove optimistic track on error
-      setTimeout(() => {
-        removeOptimisticTrack(optimisticTrackId);
-      }, 0);
+      removeOptimisticTrack(optimisticTrackId);
 
       console.error("Upload error:", error);
       toast({
@@ -340,7 +357,7 @@ export function UploadTrackToAlbum({
     <Dialog open={open} onOpenChange={setOpen}>
       {!onOpenChange && (
         <DialogTrigger asChild>
-          <Button className="gap-2 hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all">
+          <Button className="gap-2 hover:bg-primary/90 transition-all min-h-[44px]">
             <Upload className="h-4 w-4" />
             Upload Track
           </Button>
@@ -351,88 +368,98 @@ export function UploadTrackToAlbum({
           <DialogTitle>Upload Track</DialogTitle>
           <DialogDescription>Add a new track to this album</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          {!isIAConnected && (
-            <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm border border-destructive/20">
-              ⚠️ Please add your Internet Archive credentials in Settings first
-            </div>
-          )}
-
-          <div>
-            <Label htmlFor="audio-file">Audio File</Label>
-            <Input
-              id="audio-file"
-              type="file"
-              accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac"
-              onChange={handleFileChange}
-              disabled={uploading || !isIAConnected}
-              className="cursor-pointer file:cursor-pointer"
-            />
-            {file && (
-              <p className="text-sm text-muted-foreground mt-1">
-                Selected: {file.name}
-              </p>
-            )}
+        
+        {checkingCredentials ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <span className="ml-2 text-sm text-muted-foreground">Checking credentials...</span>
           </div>
-
-          <div>
-            <Label htmlFor="title">Track Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter track title"
-              disabled={uploading}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="artist">Artist (optional)</Label>
-            <Input
-              id="artist"
-              value={artist}
-              onChange={(e) => setArtist(e.target.value)}
-              placeholder="Leave empty to use album artist"
-              disabled={uploading}
-            />
-          </div>
-
-          {uploading && (
-            <div className="space-y-3 py-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                {(uploadStage === "processing" || uploadStage === "saving") && (
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                )}
-                <span className="text-foreground/90">
-                  {getUploadStatusText()}
-                </span>
+        ) : (
+          <div className="space-y-4">
+            {!isIAConnected && (
+              <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm border border-destructive/20">
+                ⚠️ Please add your Internet Archive credentials in Settings first
               </div>
+            )}
 
-              {uploadStage === "uploading" && (
-                <Progress value={uploadProgress} className="h-2" />
-              )}
-
-              {(uploadStage === "processing" || uploadStage === "saving") && (
-                <Progress value={undefined} className="h-2" />
+            <div>
+              <Label htmlFor="audio-file">Audio File</Label>
+              <Input
+                id="audio-file"
+                type="file"
+                accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac"
+                onChange={handleFileChange}
+                disabled={uploading || !isIAConnected}
+                className="cursor-pointer file:cursor-pointer min-h-[44px]"
+              />
+              {file && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Selected: {file.name}
+                </p>
               )}
             </div>
-          )}
 
-          <Button
-            onClick={handleUpload}
-            disabled={uploading || !file || !isIAConnected}
-            className="w-full hover:bg-primary/90 transition-all"
-          >
-            {uploading ? (
-              <span className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Uploading...
-              </span>
-            ) : (
-              "Upload Track"
+            <div>
+              <Label htmlFor="title">Track Title</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter track title"
+                disabled={uploading}
+                className="min-h-[44px]"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="artist">Artist (optional)</Label>
+              <Input
+                id="artist"
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+                placeholder="Leave empty to use album artist"
+                disabled={uploading}
+                className="min-h-[44px]"
+              />
+            </div>
+
+            {uploading && (
+              <div className="space-y-3 py-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  {(uploadStage === "processing" || uploadStage === "saving") && (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  )}
+                  <span className="text-foreground/90">
+                    {getUploadStatusText()}
+                  </span>
+                </div>
+
+                {uploadStage === "uploading" && (
+                  <Progress value={uploadProgress} className="h-2" />
+                )}
+
+                {(uploadStage === "processing" || uploadStage === "saving") && (
+                  <Progress value={undefined} className="h-2" />
+                )}
+              </div>
             )}
-          </Button>
-        </div>
+
+            <Button
+              onClick={handleUpload}
+              disabled={uploading || !file || !isIAConnected || checkingCredentials}
+              className="w-full hover:bg-primary/90 transition-all min-h-[44px]"
+            >
+              {uploading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Uploading...
+                </span>
+              ) : (
+                "Upload Track"
+              )}
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
