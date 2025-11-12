@@ -68,8 +68,9 @@ Think of albums as folders for organizing your music:
 1. Open an album
 2. Click the **•••** menu → **"Upload Track"**
 3. Select an audio file (MP3, M4A, WAV, FLAC, etc.)
-4. Track appears instantly - you can play it right away!
-5. Background processing gets the best streaming quality
+4. Track appears in your list immediately (uploading in background)
+5. Wait for upload to complete before playing
+6. Background processing optimizes streaming quality
 
 ### Playing Music
 - **Tap any track** to start playing
@@ -228,4 +229,4 @@ SideC is made possible by:
 
 **Enjoy your music! 🎵**
 
-*Built by Patrick Francis ❤️*
+*Built by Patrick Francis*
