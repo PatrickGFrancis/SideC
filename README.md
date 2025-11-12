@@ -196,7 +196,7 @@ A: No, unless you mark an album as "Public". All uploads are private by default.
 A: Internet Archive doesn't enforce storage limits, so effectively unlimited.
 
 **Q: Can I download my music?**  
-A: Not yet, but it's planned! For now, keep your original files backed up.
+A: Yes! Click the track menu and select "Download". Keep your original files backed up too.
 
 **Q: What if Internet Archive goes down?**  
 A: Rare, but possible. Always keep backups of your original music files.
